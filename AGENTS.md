@@ -26,6 +26,7 @@ Do not substitute any parts of the stack without explicit approval:
 4. **UI Design System**: Strictly follow `docs/VOSS.org_design.md`:
    - Monochrome primary buttons.
    - Brand orange reserved only for focus rings, selection states, and small accents.
+   - Chart series may use the spec's chart palette (neutral axes, orange primary series, readable mono values as defined in Section 9 "Application components not defined by the source — extensions"), and nothing else (buttons, text, borders) may.
    - Flat surfaces: no box-shadows or gradients.
    - Minimum 44px touch targets.
    - Full support for light and dark themes using tokens defined in the design spec.

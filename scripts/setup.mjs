@@ -1,5 +1,6 @@
+import { execSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const rootDir = process.cwd();
@@ -22,6 +23,43 @@ function parseEnv(content) {
     }
   }
   return result;
+}
+
+function isLocalHost(urlStr) {
+  try {
+    const parsed = new URL(urlStr);
+    const host = parsed.hostname.toLowerCase();
+    return host === "127.0.0.1" || host === "localhost";
+  } catch {
+    // If URL parsing fails, check if the string contains 127.0.0.1 or localhost
+    return urlStr.includes("127.0.0.1") || urlStr.includes("localhost");
+  }
+}
+
+function dockerVolumeExists(volumeName) {
+  try {
+    const output = execSync(`docker volume ls -q --filter name=^${volumeName}$`, {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    return output.split(/\r?\n/).some((vol) => vol.trim() === volumeName);
+  } catch {
+    // Docker is missing, not running, or failed: skip check
+    return false;
+  }
+}
+
+function writeEnvSafely(filePath, content) {
+  try {
+    writeFileSync(filePath, content, { encoding: "utf-8", mode: 0o600 });
+  } catch {
+    writeFileSync(filePath, content, "utf-8");
+  }
+  try {
+    chmodSync(filePath, 0o600);
+  } catch {
+    // Best effort on Windows
+  }
 }
 
 if (!existsSync(envExamplePath)) {
@@ -83,9 +121,20 @@ if (existsSync(envPath)) {
 
 const currentEnv = parseEnv(baseContent);
 
-// Determine password
+// Check if Docker volume exists when password is missing or change-me
 let postgresPassword = currentEnv.get("POSTGRES_PASSWORD");
-if (!postgresPassword || postgresPassword === "change-me") {
+const hasNoRealPassword = !postgresPassword || postgresPassword === "change-me";
+
+if (hasNoRealPassword) {
+  if (dockerVolumeExists("vfeedback_postgres_data")) {
+    console.error(
+      "Error: The Docker volume 'vfeedback_postgres_data' already exists, but .env has no configured password.\n" +
+        "PostgreSQL only initializes its password on volume creation. You have two options:\n" +
+        "  1) Restore your previous .env file containing the original password, OR\n" +
+        "  2) Run 'docker compose down -v' to wipe local data and start fresh.",
+    );
+    process.exit(1);
+  }
   postgresPassword = randomBytes(16).toString("hex");
 }
 
@@ -99,9 +148,13 @@ const user = currentEnv.get("POSTGRES_USER") || "vfeedback";
 const db = currentEnv.get("POSTGRES_DB") || "vfeedback";
 const port = currentEnv.get("POSTGRES_PORT") || "5432";
 
-let databaseUrl = currentEnv.get("DATABASE_URL");
-if (!databaseUrl) {
-  databaseUrl = `postgresql://${user}:${postgresPassword}@127.0.0.1:${port}/${db}`;
+let databaseUrl = currentEnv.get("DATABASE_URL") || "";
+
+// Rebuild DATABASE_URL if empty OR points at 127.0.0.1 or localhost
+if (!databaseUrl || isLocalHost(databaseUrl)) {
+  const encodedUser = encodeURIComponent(user);
+  const encodedPassword = encodeURIComponent(postgresPassword);
+  databaseUrl = `postgresql://${encodedUser}:${encodedPassword}@127.0.0.1:${port}/${db}`;
 }
 
 const lines = baseContent.split(/\r?\n/);
@@ -145,5 +198,5 @@ if (!seenKeys.has("DATABASE_URL")) {
   updatedLines.push(`DATABASE_URL=${databaseUrl}`);
 }
 
-writeFileSync(envPath, updatedLines.join("\n") + "\n", "utf-8");
+writeEnvSafely(envPath, updatedLines.join("\n") + "\n");
 console.log("Configuration setup complete: .env is up to date.");
