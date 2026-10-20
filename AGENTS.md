@@ -24,6 +24,7 @@ Do not substitute any parts of the stack without explicit approval:
 2. **Access Boundary**: Public users can never read, browse, or list reports. The public status page must only return status information for one exact reference code.
 3. **Staff Authorization**: Every staff action must re-verify role and department permissions on the server before reading or mutating data.
 4. **UI Design System**: Strictly follow `docs/VOSS.org_design.md`:
+   - UI follows voss-labs/vboard docs/UI_UX_SPEC.md at the commit pinned in docs/UI_REFERENCE.md. Use semantic tokens and shadcn base-nova components only, lucide icons, no emoji. Agents must not run any git command that changes state; read-only git is fine.
    - Monochrome primary buttons.
    - Brand orange reserved only for focus rings, selection states, and small accents.
    - Chart series may use the spec's chart palette (neutral axes, orange primary series, readable mono values as defined in Section 9 "Application components not defined by the source — extensions"), and nothing else (buttons, text, borders) may.

@@ -1,6 +1,20 @@
 import { Link } from "react-router";
 import { useState } from "react";
+import { Check, Copy } from "lucide-react";
 import type { Route } from "./+types/done";
+import { Button } from "~/components/ui/button";
+import { buttonVariants } from "~/components/ui/button-variants";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+
+export const meta: Route.MetaFunction = () => {
+  return [
+    { title: "Feedback received | vfeedback" },
+    {
+      name: "description",
+      content: "Your anonymous feedback reference code.",
+    },
+  ];
+};
 
 export async function loader({ params }: Route.LoaderArgs) {
   const code = params.code;
@@ -25,93 +39,72 @@ export default function DonePage({ loaderData }: Route.ComponentProps) {
   };
 
   return (
-    <main style={{ textAlign: "center", paddingTop: "32px" }}>
-      <div
-        style={{
-          width: "48px",
-          height: "48px",
-          borderRadius: "50%",
-          background: "var(--hover-bg)",
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          marginBottom: "16px",
-          fontSize: "1.5rem",
-        }}
-      >
-        ✓
-      </div>
-      <h1 style={{ fontSize: "1.75rem", fontWeight: 600, letterSpacing: "-0.03em", marginBottom: "8px" }}>
-        Feedback received.
-      </h1>
-      <p style={{ color: "var(--text-dim)", fontSize: "1rem", marginBottom: "28px" }}>
-        Your report has been submitted anonymously.
-      </p>
-
-      {/* Code card */}
-      <div
-        className="voss-panel"
-        style={{
-          margin: "0 auto 28px auto",
-          maxWidth: "420px",
-          padding: "24px",
-        }}
-      >
-        <div
-          style={{
-            fontSize: "0.82rem",
-            color: "var(--text-dim)",
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            marginBottom: "8px",
-            fontFamily: "var(--font-mono)",
-          }}
-        >
-          Your Reference Code
+    <div className="grid grid-cols-1 items-start gap-8 min-[900px]:grid-cols-[1fr_360px] min-[900px]:gap-12">
+      {/* Main Column */}
+      <div className="w-full max-w-[640px] space-y-6">
+        <div className="bg-muted text-foreground flex size-12 items-center justify-center rounded-full">
+          <Check className="size-6" aria-hidden />
         </div>
-        <div
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "1.75rem",
-            fontWeight: 600,
-            color: "var(--text)",
-            letterSpacing: "-0.02em",
-            marginBottom: "16px",
-            userSelect: "all",
-          }}
-        >
-          {code}
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Feedback received.</h1>
+          <p className="text-muted-foreground text-base leading-relaxed">
+            Your feedback has been submitted anonymously. Save your reference code to check whether it has been reviewed
+            or resolved.
+          </p>
         </div>
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="voss-btn-ghost"
-          style={{ width: "100%", minHeight: "44px" }}
-        >
-          {copied ? "✓ Copied to clipboard" : "Copy code"}
-        </button>
+
+        {/* Reference code Card */}
+        <Card>
+          <CardHeader>
+            <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">Your Reference Code</p>
+            <CardTitle className="font-mono text-2xl font-semibold tracking-tight select-all md:text-3xl">
+              {code}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Button type="button" variant="outline" onClick={handleCopy} className="w-full gap-2">
+              {copied ? (
+                <>
+                  <Check className="text-success size-4" aria-hidden />
+                  <span>Copied to clipboard</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="size-4" aria-hidden />
+                  <span>Copy code</span>
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <div className="flex flex-wrap gap-3">
+          <Link to={`/status?code=${encodeURIComponent(code)}`} className={buttonVariants({ variant: "outline" })}>
+            Check status now
+          </Link>
+          <Link to="/" className={buttonVariants({ variant: "default" })}>
+            Send another report
+          </Link>
+        </div>
       </div>
 
-      <p
-        style={{
-          color: "var(--text-dim)",
-          fontSize: "0.92rem",
-          maxWidth: "440px",
-          margin: "0 auto 32px auto",
-          lineHeight: 1.5,
-        }}
-      >
-        Save this code. You can use it anytime on the status page to see if your feedback has been reviewed or resolved.
-      </p>
-
-      <div style={{ display: "flex", justifyContent: "center", gap: "16px", flexWrap: "wrap" }}>
-        <Link to={`/status?code=${encodeURIComponent(code)}`} className="voss-btn-ghost">
-          Check status now
-        </Link>
-        <Link to="/" className="voss-btn-primary">
-          Send another
-        </Link>
-      </div>
-    </main>
+      {/* Sidebar Help Card */}
+      <aside className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Keep your code handy</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm leading-relaxed">
+            <p className="text-foreground">
+              Because VFeedback does not collect names, email addresses, or roll numbers, your word-based code is the{" "}
+              <strong>only key</strong> to track updates on this report.
+            </p>
+            <p className="text-muted-foreground">
+              Staff will update the status once they review or take action on the place you reported.
+            </p>
+          </CardContent>
+        </Card>
+      </aside>
+    </div>
   );
 }

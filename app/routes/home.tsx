@@ -1,8 +1,25 @@
 import { Form, Link, useSearchParams } from "react-router";
 import { asc, eq } from "drizzle-orm";
+import { ArrowRight, Check, MapPinOff } from "lucide-react";
 import { db } from "../db/client.server.js";
 import { places } from "../db/schema.js";
 import type { Route } from "./+types/home";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
+import { EmptyState } from "~/components/empty-state";
+import { cn } from "~/lib/utils";
+
+export const meta: Route.MetaFunction = () => {
+  return [
+    { title: "vfeedback — Vidyalankar Institute of Technology" },
+    {
+      name: "description",
+      content: "One place to speak up about your campus. Anonymous student feedback for VIT.",
+    },
+  ];
+};
 
 export async function loader() {
   try {
@@ -64,131 +81,184 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   };
 
   return (
-    <main>
-      <section style={{ marginBottom: "32px" }}>
-        <h1
-          style={{
-            fontSize: "clamp(1.8rem, 4vw, 2.4rem)",
-            fontWeight: 600,
-            letterSpacing: "-0.03em",
-            lineHeight: 1.15,
-            marginBottom: "12px",
-          }}
-        >
-          One place to speak up about your campus.
-        </h1>
-        <p style={{ color: "var(--text-dim)", fontSize: "1rem" }}>
-          Pick a place, answer 2–4 quick questions, and receive a private reference code. No account required.
-        </p>
-      </section>
+    <div className="grid grid-cols-1 items-start gap-8 min-[900px]:grid-cols-[1fr_360px] min-[900px]:gap-12">
+      {/* Main Column */}
+      <div className="w-full max-w-[640px] space-y-8">
+        <section className="space-y-3">
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
+            One place to speak up about your campus.
+          </h1>
+          <p className="text-muted-foreground max-w-[65ch] text-base leading-relaxed">
+            Pick a place, answer 2–4 quick questions, and receive a private reference code. No student accounts, no roll
+            numbers, completely anonymous.
+          </p>
+        </section>
 
-      {/* Search box & Places */}
-      <section style={{ marginBottom: "40px" }}>
-        <div style={{ marginBottom: "16px" }}>
-          <label
-            htmlFor="place-search"
-            style={{
-              display: "block",
-              fontSize: "0.88rem",
-              fontWeight: 500,
-              color: "var(--text-dim)",
-              marginBottom: "8px",
-            }}
-          >
-            Find a place
-          </label>
-          <input
-            id="place-search"
-            type="search"
-            className="voss-input"
-            placeholder="Search lab, canteen, Wi-Fi..."
-            value={search}
-            onChange={(e) => {
-              const next = new URLSearchParams(searchParams);
-              if (e.target.value) {
-                next.set("q", e.target.value);
-              } else {
-                next.delete("q");
-              }
-              setSearchParams(next);
-            }}
-          />
-        </div>
+        {/* Search box & Places */}
+        <section className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="place-search">Find a place</Label>
+            <Input
+              id="place-search"
+              type="search"
+              placeholder="Search lab, canteen, Wi-Fi..."
+              value={search}
+              onChange={(e) => {
+                const next = new URLSearchParams(searchParams);
+                if (e.target.value) {
+                  next.set("q", e.target.value);
+                } else {
+                  next.delete("q");
+                }
+                setSearchParams(next);
+              }}
+            />
+          </div>
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }} role="group" aria-label="Select a place">
-          {filteredPlaces.length === 0 ? (
-            <p style={{ color: "var(--text-dim)", fontSize: "0.9rem", padding: "8px 0" }}>
-              No places matching &quot;{search}&quot;.
-            </p>
-          ) : (
-            filteredPlaces.map((place) => {
-              const isSelected = selectedPlace === place.id;
-              return (
-                <button
-                  type="button"
-                  key={place.id}
-                  onClick={() => handleSelectPlace(place.id)}
-                  className={`voss-chip ${isSelected ? "selected" : ""}`}
-                  aria-pressed={isSelected}
-                >
-                  {isSelected && <span aria-hidden="true">✓ </span>}
-                  <span>{place.name}</span>
-                  <span
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "0.72rem",
-                      color: "var(--text-dim)",
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Select a place">
+            {filteredPlaces.length === 0 ? (
+              <EmptyState
+                icon={<MapPinOff className="size-5" aria-hidden />}
+                title="No matching places"
+                body={`We couldn't find any places matching "${search}".`}
+                action={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const next = new URLSearchParams(searchParams);
+                      next.delete("q");
+                      setSearchParams(next);
                     }}
                   >
-                    ({place.groupName})
-                  </span>
-                </button>
-              );
-            })
-          )}
-        </div>
-      </section>
+                    Clear search
+                  </Button>
+                }
+                className="w-full"
+              />
+            ) : (
+              filteredPlaces.map((place) => {
+                const isSelected = selectedPlace === place.id;
+                return (
+                  <Button
+                    key={place.id}
+                    type="button"
+                    variant="outline"
+                    data-slot="place-chip"
+                    aria-pressed={isSelected}
+                    onClick={() => handleSelectPlace(place.id)}
+                    className={cn(
+                      "h-9 gap-1.5 rounded-full px-3.5 text-xs font-normal transition-all",
+                      isSelected && "border-brand ring-brand ring-1 font-medium",
+                    )}
+                  >
+                    {isSelected && <Check className="text-brand size-3" aria-hidden />}
+                    <span>{place.name}</span>
+                    <span className="text-muted-foreground text-[11px]">({place.groupName})</span>
+                  </Button>
+                );
+              })
+            )}
+          </div>
+        </section>
 
-      {/* Flat rows */}
-      <section>
-        <div className="voss-row-list">
-          <Link to={buildReportUrl("rate")} className="voss-row">
-            <div>
-              <div style={{ fontWeight: 600, fontSize: "1.1rem", marginBottom: "4px" }}>Rate something</div>
-              <div style={{ color: "var(--text-dim)", fontSize: "0.92rem" }}>
-                Leave a quick 1 to 5 rating with what stood out.
+        {/* Three actions as card-style links */}
+        <section className="space-y-3">
+          <Card className="hover:ring-foreground/25 transition-all">
+            <Link to={buildReportUrl("rate")} className="group flex items-center justify-between gap-4 p-5">
+              <div>
+                <h2 className="group-hover:text-brand text-base font-semibold transition-colors">Rate something</h2>
+                <p className="text-muted-foreground mt-1 text-sm">Leave a quick 1 to 5 rating with what stood out.</p>
               </div>
-            </div>
-            <span style={{ fontSize: "1.2rem", color: "var(--text-dim)" }} aria-hidden="true">
-              →
-            </span>
-          </Link>
+              <ArrowRight
+                className="text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 size-4 shrink-0 transition-all"
+                aria-hidden
+              />
+            </Link>
+          </Card>
 
-          <Link to={buildReportUrl("issue")} className="voss-row">
-            <div>
-              <div style={{ fontWeight: 600, fontSize: "1.1rem", marginBottom: "4px" }}>Report a problem</div>
-              <div style={{ color: "var(--text-dim)", fontSize: "0.92rem" }}>
-                Broken AC, bad Wi-Fi, lab equipment issues or hygiene reports.
+          <Card className="hover:ring-foreground/25 transition-all">
+            <Link to={buildReportUrl("issue")} className="group flex items-center justify-between gap-4 p-5">
+              <div>
+                <h2 className="group-hover:text-brand text-base font-semibold transition-colors">Report a problem</h2>
+                <p className="text-muted-foreground mt-1 text-sm">
+                  Broken AC, bad Wi-Fi, lab equipment issues or hygiene reports.
+                </p>
               </div>
-            </div>
-            <span style={{ fontSize: "1.2rem", color: "var(--text-dim)" }} aria-hidden="true">
-              →
-            </span>
-          </Link>
+              <ArrowRight
+                className="text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 size-4 shrink-0 transition-all"
+                aria-hidden
+              />
+            </Link>
+          </Card>
 
-          <Link to={buildReportUrl("suggest")} className="voss-row">
-            <div>
-              <div style={{ fontWeight: 600, fontSize: "1.1rem", marginBottom: "4px" }}>Make a suggestion</div>
-              <div style={{ color: "var(--text-dim)", fontSize: "0.92rem" }}>
-                Share an idea to make campus or facilities better.
+          <Card className="hover:ring-foreground/25 transition-all">
+            <Link to={buildReportUrl("suggest")} className="group flex items-center justify-between gap-4 p-5">
+              <div>
+                <h2 className="group-hover:text-brand text-base font-semibold transition-colors">Make a suggestion</h2>
+                <p className="text-muted-foreground mt-1 text-sm">Share an idea to make campus or facilities better.</p>
               </div>
-            </div>
-            <span style={{ fontSize: "1.2rem", color: "var(--text-dim)" }} aria-hidden="true">
-              →
-            </span>
-          </Link>
-        </div>
-      </section>
-    </main>
+              <ArrowRight
+                className="text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 size-4 shrink-0 transition-all"
+                aria-hidden
+              />
+            </Link>
+          </Card>
+        </section>
+      </div>
+
+      {/* Sidebar Column */}
+      <aside className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Check your report</CardTitle>
+            <CardDescription>Already submitted feedback? Look up its status with your code.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form method="get" action="/status" className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="sidebar-code">Reference code</Label>
+                <Input
+                  id="sidebar-code"
+                  type="text"
+                  name="code"
+                  placeholder="e.g. spicy-samosa-42"
+                  className="font-mono text-sm"
+                  required
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
+                />
+              </div>
+              <Button type="submit" className="w-full">
+                Check status
+              </Button>
+            </Form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>How it works</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ol className="text-muted-foreground list-decimal list-inside space-y-3 text-sm leading-relaxed">
+              <li>
+                <strong className="text-foreground font-medium">Pick a place</strong>: Choose the lab, canteen, Wi-Fi or
+                classroom you visited.
+              </li>
+              <li>
+                <strong className="text-foreground font-medium">Tell us</strong>: Rate your visit, flag a defect, or
+                suggest an improvement.
+              </li>
+              <li>
+                <strong className="text-foreground font-medium">Track it with your code</strong>: Save your anonymous
+                reference code to track resolution.
+              </li>
+            </ol>
+          </CardContent>
+        </Card>
+      </aside>
+    </div>
   );
 }

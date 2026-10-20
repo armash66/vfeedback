@@ -1,10 +1,34 @@
 import { Form, Link, redirect, useActionData, useNavigation, useSearchParams } from "react-router";
 import { asc, eq } from "drizzle-orm";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, Check, Lock } from "lucide-react";
 import { db } from "../db/client.server.js";
 import { places } from "../db/schema.js";
 import { createReport, validateReportInput } from "../lib/reports.server.js";
 import type { Route } from "./+types/report";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { Label } from "~/components/ui/label";
+import { Textarea } from "~/components/ui/textarea";
+import { PageHeader } from "~/components/page-header";
+import { cn } from "~/lib/utils";
+
+export const meta: Route.MetaFunction = ({ params }) => {
+  const type = params.type;
+  const titles: Record<string, string> = {
+    rate: "Rate your experience | vfeedback",
+    issue: "Report a problem | vfeedback",
+    suggest: "Make a suggestion | vfeedback",
+  };
+  const title = (type && titles[type]) || "Submit feedback | vfeedback";
+  return [
+    { title },
+    {
+      name: "description",
+      content: "Submit anonymous campus feedback for Vidyalankar Institute of Technology.",
+    },
+  ];
+};
 
 export async function loader({ params }: Route.LoaderArgs) {
   const type = params.type;
@@ -71,7 +95,9 @@ export async function action({ request, params }: Route.ActionArgs) {
     const result = await createReport(payload);
     return redirect(`/done/${result.code}`);
   } catch (error: any) {
-    return { errors: [error.message || "Failed to submit report. Please try again."] };
+    return {
+      errors: [error.message || "Failed to submit report. Please try again."],
+    };
   }
 }
 
@@ -106,6 +132,26 @@ export default function ReportPage({ loaderData }: Route.ComponentProps) {
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
 
+  const alertRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (actionData?.errors && actionData.errors.length > 0) {
+      const errs = actionData.errors.map((e) => e.toLowerCase());
+      if (errs.some((e) => e.includes("place"))) {
+        const el = document.querySelector<HTMLButtonElement>('[data-slot="place-chip"]');
+        el?.focus();
+      } else if (errs.some((e) => e.includes("rating"))) {
+        const el = document.querySelector<HTMLButtonElement>('[role="radio"]');
+        el?.focus();
+      } else if (errs.some((e) => e.includes("message") || e.includes("character") || e.includes("note"))) {
+        textareaRef.current?.focus();
+      } else {
+        alertRef.current?.focus();
+      }
+    }
+  }, [actionData]);
+
   const toggleHighlight = (option: string) => {
     setSelectedHighlights((prev) =>
       prev.includes(option) ? prev.filter((item) => item !== option) : [...prev, option],
@@ -119,227 +165,191 @@ export default function ReportPage({ loaderData }: Route.ComponentProps) {
   };
 
   return (
-    <main>
-      <div style={{ marginBottom: "24px" }}>
-        <Link
-          to="/"
-          style={{
-            fontSize: "0.88rem",
-            color: "var(--text-dim)",
-            textDecoration: "none",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "4px",
-            marginBottom: "12px",
-          }}
-        >
-          ← Back to home
-        </Link>
-        <h1 style={{ fontSize: "1.75rem", fontWeight: 600, letterSpacing: "-0.03em" }}>{titleMap[type]}</h1>
-        <p style={{ color: "var(--text-dim)", fontSize: "0.95rem" }}>
-          Never collect your name or roll number. Completely anonymous.
-        </p>
-      </div>
-
-      {actionData?.errors && actionData.errors.length > 0 && (
-        <div
-          role="alert"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid #b91c1c",
-            borderRadius: "var(--radius-sm)",
-            padding: "12px 16px",
-            marginBottom: "24px",
-          }}
-        >
-          <div style={{ color: "#b91c1c", fontWeight: 600, fontSize: "0.9rem", marginBottom: "4px" }}>
-            Please fix the following:
-          </div>
-          <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "0.88rem", color: "var(--text)" }}>
-            {actionData.errors.map((err, idx) => (
-              <li key={idx}>{err}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <Form method="post">
-        {/* Hidden inputs */}
-        <input type="hidden" name="placeId" value={selectedPlace} />
-        {selectedRating && <input type="hidden" name="rating" value={selectedRating} />}
-        {selectedHighlights.map((hl) => (
-          <input key={hl} type="hidden" name="highlights" value={hl} />
-        ))}
-
-        {/* Step 1: Place selection */}
-        <fieldset style={{ border: "none", padding: 0, margin: "0 0 28px 0" }}>
-          <legend
-            style={{
-              fontSize: "0.92rem",
-              fontWeight: 600,
-              color: "var(--text)",
-              marginBottom: "10px",
-            }}
+    <div className="grid grid-cols-1 items-start gap-8 min-[900px]:grid-cols-[1fr_360px] min-[900px]:gap-12">
+      {/* Main Form Column (640px max) */}
+      <div className="w-full max-w-[640px] space-y-6">
+        <div>
+          <Link
+            to="/"
+            className="text-muted-foreground hover:text-foreground mb-4 inline-flex items-center gap-1.5 text-sm transition-colors"
           >
-            Select place *
-          </legend>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }} role="group" aria-label="Select place">
-            {placeList.map((place) => {
-              const isSelected = selectedPlace === place.id;
-              return (
-                <button
-                  type="button"
-                  key={place.id}
-                  onClick={() => setSelectedPlace(place.id)}
-                  className={`voss-chip ${isSelected ? "selected" : ""}`}
-                  aria-pressed={isSelected}
-                >
-                  {isSelected && <span aria-hidden="true">✓ </span>}
-                  <span>{place.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
+            <ArrowLeft className="size-4" aria-hidden />
+            Back to home
+          </Link>
+          <PageHeader
+            title={titleMap[type]}
+            description="Help campus staff improve facilities and services. Completely anonymous."
+            eyebrow="Campus feedback"
+          />
+        </div>
 
-        {/* Step 2: Rating grid for type=rate */}
-        {type === "rate" && (
-          <fieldset style={{ border: "none", padding: 0, margin: "0 0 28px 0" }}>
-            <legend
-              style={{
-                fontSize: "0.92rem",
-                fontWeight: 600,
-                color: "var(--text)",
-                marginBottom: "10px",
-              }}
-            >
-              Rating *
-            </legend>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(5, 1fr)",
-                gap: "8px",
-              }}
-              role="radiogroup"
-              aria-label="Rating"
-            >
-              {RATING_LABELS.map((item) => {
-                const isSelected = selectedRating === item.value;
+        {actionData?.errors && actionData.errors.length > 0 && (
+          <div
+            role="alert"
+            ref={alertRef}
+            tabIndex={-1}
+            className="border-destructive/40 bg-destructive/10 text-destructive rounded-lg border p-4 text-sm outline-none"
+          >
+            <div className="mb-1 font-semibold">Please fix the following:</div>
+            <ul className="text-foreground list-inside list-disc space-y-1">
+              {actionData.errors.map((err, idx) => (
+                <li key={idx}>{err}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <Form method="post" className="space-y-6">
+          {/* Hidden inputs */}
+          <input type="hidden" name="placeId" value={selectedPlace} />
+          {selectedRating && <input type="hidden" name="rating" value={selectedRating} />}
+          {selectedHighlights.map((hl) => (
+            <input key={hl} type="hidden" name="highlights" value={hl} />
+          ))}
+
+          {/* Step 1: Place selection */}
+          <fieldset className="space-y-3">
+            <legend className="text-foreground text-sm font-medium">Select place *</legend>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Select place">
+              {placeList.map((place) => {
+                const isSelected = selectedPlace === place.id;
                 return (
-                  <button
+                  <Button
+                    key={place.id}
                     type="button"
-                    key={item.value}
-                    onClick={() => setSelectedRating(item.value)}
-                    className="voss-btn-ghost"
-                    style={{
-                      flexDirection: "column",
-                      padding: "10px 4px",
-                      minHeight: "64px",
-                      border: isSelected ? "2px solid var(--brand)" : "1px solid var(--border)",
-                      fontWeight: isSelected ? 600 : 400,
-                    }}
-                    role="radio"
-                    aria-checked={isSelected}
+                    variant="outline"
+                    data-slot="place-chip"
+                    aria-pressed={isSelected}
+                    onClick={() => setSelectedPlace(place.id)}
+                    className={cn(
+                      "h-9 gap-1.5 rounded-full px-3.5 text-xs font-normal transition-all",
+                      isSelected && "border-brand ring-brand ring-1 font-medium",
+                    )}
                   >
-                    <span style={{ fontSize: "1.2rem", lineHeight: 1 }}>{item.value}</span>
-                    <span
-                      style={{
-                        fontSize: "0.75rem",
-                        color: isSelected ? "var(--text)" : "var(--text-dim)",
-                        marginTop: "4px",
-                      }}
-                    >
-                      {item.label}
-                    </span>
-                  </button>
+                    {isSelected && <Check className="text-brand size-3" aria-hidden />}
+                    <span>{place.name}</span>
+                  </Button>
                 );
               })}
             </div>
+          </fieldset>
 
-            {/* Optional highlights */}
-            <div style={{ marginTop: "20px" }}>
-              <div
-                style={{
-                  fontSize: "0.88rem",
-                  fontWeight: 500,
-                  color: "var(--text-dim)",
-                  marginBottom: "8px",
-                }}
-              >
-                What stood out? (optional)
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                {HIGHLIGHT_OPTIONS.map((opt) => {
-                  const isSelected = selectedHighlights.includes(opt);
+          {/* Step 2: Rating grid for type=rate */}
+          {type === "rate" && (
+            <fieldset className="space-y-4">
+              <legend className="text-foreground text-sm font-medium">Rating *</legend>
+              <div className="grid grid-cols-5 gap-2" role="radiogroup" aria-label="Rating">
+                {RATING_LABELS.map((item) => {
+                  const isSelected = selectedRating === item.value;
                   return (
-                    <button
+                    <Button
+                      key={item.value}
                       type="button"
-                      key={opt}
-                      onClick={() => toggleHighlight(opt)}
-                      className={`voss-chip ${isSelected ? "selected" : ""}`}
+                      variant="outline"
+                      role="radio"
+                      aria-checked={isSelected}
                       aria-pressed={isSelected}
+                      onClick={() => setSelectedRating(item.value)}
+                      className={cn(
+                        "flex h-16 flex-col justify-center px-1 py-2 text-center transition-all",
+                        isSelected && "border-brand ring-brand ring-1 font-medium",
+                      )}
                     >
-                      {isSelected && <span aria-hidden="true">✓ </span>}
-                      <span>{opt}</span>
-                    </button>
+                      <span className="font-mono text-base font-semibold leading-none">{item.value}</span>
+                      <span className="text-muted-foreground flex items-center justify-center gap-1 text-[11px]">
+                        {isSelected && <Check className="text-brand size-2.5" aria-hidden />}
+                        {item.label}
+                      </span>
+                    </Button>
                   );
                 })}
               </div>
+
+              {/* Optional highlights */}
+              <div className="space-y-2 pt-2">
+                <Label className="text-muted-foreground text-sm font-medium">What stood out? (optional)</Label>
+                <div className="flex flex-wrap gap-2">
+                  {HIGHLIGHT_OPTIONS.map((opt) => {
+                    const isSelected = selectedHighlights.includes(opt);
+                    return (
+                      <Button
+                        key={opt}
+                        type="button"
+                        variant="outline"
+                        aria-pressed={isSelected}
+                        onClick={() => toggleHighlight(opt)}
+                        className={cn(
+                          "h-8 gap-1 rounded-full px-3 text-xs font-normal transition-all",
+                          isSelected && "border-brand ring-brand ring-1 font-medium",
+                        )}
+                      >
+                        {isSelected && <Check className="text-brand size-3" aria-hidden />}
+                        <span>{opt}</span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            </fieldset>
+          )}
+
+          {/* Note / Message */}
+          <div className="space-y-2">
+            <Label htmlFor="report-note">
+              {type === "rate" ? "Add a note (optional)" : type === "issue" ? "Describe the issue *" : "Your idea *"}
+            </Label>
+            <Textarea
+              id="report-note"
+              ref={textareaRef}
+              name="note"
+              rows={4}
+              maxLength={1000}
+              placeholder={
+                type === "rate"
+                  ? "Anything specific you would like to share..."
+                  : type === "issue"
+                    ? "Explain what is broken, missing, or needs attention (min 5 chars)..."
+                    : "Tell us your idea and how it improves things (min 5 chars)..."
+              }
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className="min-h-[120px]"
+            />
+            <div className="text-muted-foreground flex justify-between text-xs">
+              <span>{type !== "rate" ? "Minimum 5 characters" : ""}</span>
+              <span className="font-mono">{message.length} / 1000</span>
             </div>
-          </fieldset>
-        )}
-
-        {/* Note / Message */}
-        <div style={{ marginBottom: "32px" }}>
-          <label
-            htmlFor="report-note"
-            style={{
-              display: "block",
-              fontSize: "0.92rem",
-              fontWeight: 600,
-              color: "var(--text)",
-              marginBottom: "8px",
-            }}
-          >
-            {type === "rate" ? "Add a note (optional)" : type === "issue" ? "Describe the issue *" : "Your idea *"}
-          </label>
-          <textarea
-            id="report-note"
-            name="note"
-            className="voss-textarea"
-            rows={4}
-            maxLength={1000}
-            placeholder={
-              type === "rate"
-                ? "Anything specific you would like to share..."
-                : type === "issue"
-                  ? "Explain what is broken, missing, or needs attention (min 5 chars)..."
-                  : "Tell us your idea and how it improves things (min 5 chars)..."
-            }
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            style={{ minHeight: "120px" }}
-          />
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              fontSize: "0.75rem",
-              color: "var(--text-dim)",
-              marginTop: "4px",
-            }}
-          >
-            <span>{type !== "rate" ? "Minimum 5 characters" : ""}</span>
-            <span style={{ fontFamily: "var(--font-mono)" }}>{message.length} / 1000</span>
           </div>
-        </div>
 
-        {/* Submit button */}
-        <button type="submit" disabled={isSubmitting} className="voss-btn-primary" style={{ width: "100%" }}>
-          {isSubmitting ? "Submitting..." : "Submit feedback"}
-        </button>
-      </Form>
-    </main>
+          {/* Submit button */}
+          <Button type="submit" disabled={isSubmitting} className="w-full">
+            {isSubmitting ? "Sending..." : "Submit feedback"}
+          </Button>
+        </Form>
+      </div>
+
+      {/* Sidebar Column */}
+      <aside className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>What happens next</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <ul className="text-muted-foreground list-inside list-disc space-y-2.5 text-sm leading-relaxed">
+              <li>
+                Your report gets a word-based reference code like{" "}
+                <code className="text-foreground font-mono font-medium">spicy-samosa-42</code>.
+              </li>
+              <li>Department and facility staff for that place review the report and update progress.</li>
+              <li>You can check back on the status anytime using your reference code.</li>
+            </ul>
+            <div className="border-border text-muted-foreground flex items-center gap-2 border-t pt-3 text-xs">
+              <Lock className="size-3.5 shrink-0" aria-hidden />
+              <span>No name or roll number is collected.</span>
+            </div>
+          </CardContent>
+        </Card>
+      </aside>
+    </div>
   );
 }
