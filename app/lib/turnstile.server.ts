@@ -33,6 +33,7 @@ export async function verifyTurnstileToken(token: string | null | undefined): Pr
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
       },
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!response.ok) {
@@ -47,8 +48,13 @@ export async function verifyTurnstileToken(token: string | null | undefined): Pr
     }
 
     return { success: true };
-  } catch (error) {
-    console.error("Error verifying Turnstile token:", error);
+  } catch (error: any) {
+    if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+      console.warn("Turnstile siteverify timed out or aborted:", error?.message);
+      return { success: false, error: "Verification could not be completed. Please try again." };
+    }
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("Error verifying Turnstile token:", msg);
     return { success: false, error: "Verification failed. Please try again." };
   }
 }

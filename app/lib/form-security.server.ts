@@ -1,9 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { getSessionSecret } from "./session-secret.server.js";
 
 export const GENERIC_ERROR_MESSAGE = "Something went wrong. Please try again.";
 
 export function generateFormToken(): string {
-  const secret = process.env.SESSION_SECRET || "fallback-secret";
+  const secret = getSessionSecret();
   const timestamp = Date.now().toString();
   const signature = createHmac("sha256", secret).update(`fill-time:${timestamp}`).digest("hex");
   return `${timestamp}.${signature}`;
@@ -25,7 +26,7 @@ export function verifyFormToken(token: unknown, nowMs: number = Date.now()): boo
     return false;
   }
 
-  const secret = process.env.SESSION_SECRET || "fallback-secret";
+  const secret = getSessionSecret();
   const expectedSignature = createHmac("sha256", secret).update(`fill-time:${timestampStr}`).digest("hex");
 
   if (signature.length !== expectedSignature.length) {

@@ -8,9 +8,26 @@ import {
 } from "../app/lib/rate-limit.server.js";
 import { generateFormToken, isHoneypotTriggered, verifyFormToken } from "../app/lib/form-security.server.js";
 import { isTurnstileEnabled, verifyTurnstileToken } from "../app/lib/turnstile.server.js";
+import { getSessionSecret } from "../app/lib/session-secret.server.js";
 
 describe("security - rate limiting and bot protection", () => {
   describe("pure security tests", () => {
+    it("getSessionSecret reads and trims SESSION_SECRET, and throws when missing or empty", () => {
+      const origSecret = process.env.SESSION_SECRET;
+      try {
+        process.env.SESSION_SECRET = "  test-session-secret-value  ";
+        expect(getSessionSecret()).toBe("test-session-secret-value");
+
+        process.env.SESSION_SECRET = "";
+        expect(() => getSessionSecret()).toThrow("Missing or empty SESSION_SECRET environment variable");
+
+        delete process.env.SESSION_SECRET;
+        expect(() => getSessionSecret()).toThrow("Missing or empty SESSION_SECRET environment variable");
+      } finally {
+        process.env.SESSION_SECRET = origSecret;
+      }
+    });
+
     it("the rate-limit key is not the raw address", () => {
       const rawAddress = "192.168.1.100";
       const key = getRateLimitKey("report", rawAddress);
@@ -32,19 +49,66 @@ describe("security - rate limiting and bot protection", () => {
       expect(key).not.toBe(keyStatus);
     });
 
-    it("getClientAddress extracts cf-connecting-ip, else x-forwarded-for, else unknown", () => {
-      const req1 = new Request("http://localhost", {
-        headers: { "cf-connecting-ip": "203.0.113.195" },
-      });
-      expect(getClientAddress(req1)).toBe("203.0.113.195");
+    it("getClientAddress respects TRUST_PROXY settings (none, cloudflare, proxy)", () => {
+      const origTrust = process.env.TRUST_PROXY;
+      try {
+        const reqWithHeaders = new Request("http://localhost", {
+          headers: {
+            "cf-connecting-ip": "203.0.113.195",
+            "x-forwarded-for": "10.0.0.1, 198.51.100.1",
+          },
+        });
 
-      const req2 = new Request("http://localhost", {
-        headers: { "x-forwarded-for": "198.51.100.1, 192.0.2.1" },
-      });
-      expect(getClientAddress(req2)).toBe("198.51.100.1");
+        // 1. TRUST_PROXY=none (or unset/unknown): ignore all forwarded headers, return "unknown"
+        process.env.TRUST_PROXY = "none";
+        expect(getClientAddress(reqWithHeaders)).toBe("unknown");
 
-      const req3 = new Request("http://localhost");
-      expect(getClientAddress(req3)).toBe("unknown");
+        delete process.env.TRUST_PROXY;
+        expect(getClientAddress(reqWithHeaders)).toBe("unknown");
+
+        process.env.TRUST_PROXY = "unknown-value";
+        expect(getClientAddress(reqWithHeaders)).toBe("unknown");
+
+        // 2. TRUST_PROXY=cloudflare: use only cf-connecting-ip
+        process.env.TRUST_PROXY = "cloudflare";
+        expect(getClientAddress(reqWithHeaders)).toBe("203.0.113.195");
+
+        const reqInvalidCf = new Request("http://localhost", {
+          headers: { "cf-connecting-ip": "not-an-ip-address" },
+        });
+        expect(getClientAddress(reqInvalidCf)).toBe("unknown");
+
+        const reqNoCf = new Request("http://localhost", {
+          headers: { "x-forwarded-for": "198.51.100.1" },
+        });
+        expect(getClientAddress(reqNoCf)).toBe("unknown");
+
+        // 3. TRUST_PROXY=proxy: use rightmost entry of x-forwarded-for (ignoring spoofed leftmost)
+        process.env.TRUST_PROXY = "proxy";
+        const reqSpoofed = new Request("http://localhost", {
+          headers: { "x-forwarded-for": "1.2.3.4, 198.51.100.1" },
+        });
+        expect(getClientAddress(reqSpoofed)).toBe("198.51.100.1");
+
+        const reqSingleProxy = new Request("http://localhost", {
+          headers: { "x-forwarded-for": "192.0.2.1" },
+        });
+        expect(getClientAddress(reqSingleProxy)).toBe("192.0.2.1");
+
+        const reqInvalidProxy = new Request("http://localhost", {
+          headers: { "x-forwarded-for": "1.2.3.4, invalid-ip" },
+        });
+        expect(getClientAddress(reqInvalidProxy)).toBe("unknown");
+
+        const reqNoProxy = new Request("http://localhost");
+        expect(getClientAddress(reqNoProxy)).toBe("unknown");
+      } finally {
+        if (origTrust !== undefined) {
+          process.env.TRUST_PROXY = origTrust;
+        } else {
+          delete process.env.TRUST_PROXY;
+        }
+      }
     });
 
     it("honeypot rejection: detects when website field is filled", () => {
@@ -144,6 +208,31 @@ describe("security - rate limiting and bot protection", () => {
       }
     });
 
+    it("Turnstile timeout returns friendly error message", async () => {
+      const origSite = process.env.TURNSTILE_SITE_KEY;
+      const origSecret = process.env.TURNSTILE_SECRET_KEY;
+
+      try {
+        process.env.TURNSTILE_SITE_KEY = "1x00000000000000000000AA";
+        process.env.TURNSTILE_SECRET_KEY = "1x0000000000000000000000000000000AA";
+
+        const originalFetch = globalThis.fetch;
+        try {
+          const timeoutErr = new DOMException("The operation was aborted due to timeout", "TimeoutError");
+          globalThis.fetch = vi.fn().mockRejectedValue(timeoutErr);
+
+          const failRes = await verifyTurnstileToken("some-token");
+          expect(failRes.success).toBe(false);
+          expect(failRes.error).toBe("Verification could not be completed. Please try again.");
+        } finally {
+          globalThis.fetch = originalFetch;
+        }
+      } finally {
+        process.env.TURNSTILE_SITE_KEY = origSite;
+        process.env.TURNSTILE_SECRET_KEY = origSecret;
+      }
+    });
+
     it("device cookie extraction and header formatting", () => {
       const deviceId = "c8b4f17a-2450-482a-a92c-623114d51a66";
       const req = new Request("http://localhost", {
@@ -207,8 +296,9 @@ describe("security - rate limiting and bot protection", () => {
 
       const key = `${testPrefix}-window`;
       const windowSeconds = 600;
+      const windowMs = windowSeconds * 1000;
+      const baseTime = new Date(Math.floor(Date.now() / windowMs) * windowMs);
       const limit = 5;
-      const baseTime = new Date("2026-10-20T12:00:00Z");
 
       // 1 to 5 should be allowed
       for (let i = 1; i <= limit; i++) {
@@ -240,8 +330,9 @@ describe("security - rate limiting and bot protection", () => {
       const deviceAKey = `${testPrefix}-deviceA`;
       const deviceBKey = `${testPrefix}-deviceB`;
       const windowSeconds = 600;
+      const windowMs = windowSeconds * 1000;
+      const now = new Date(Math.floor(Date.now() / windowMs) * windowMs);
       const limit = 5;
-      const now = new Date("2026-10-20T12:00:00Z");
 
       // Device A submits 5 times
       for (let i = 1; i <= limit; i++) {

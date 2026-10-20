@@ -20,7 +20,7 @@ Do not substitute any parts of the stack without explicit approval:
 
 ## Hard Constraints
 
-1. **Student Privacy**: Students do not need accounts. Reports are anonymous. No IP address is stored with or linked to a report, and only a short-lived keyed hash is kept for rate limiting and deleted within an hour. A random device cookie, stored only as a hash, limits repeated submissions for one day. It is not linked to any report.
+1. **Student Privacy**: Students do not need accounts. Reports are anonymous. No IP address is stored with or linked to a report. Rate-limit rows are removed within an hour, and the device cookie lasts one day. It is not linked to any report.
 2. **Access Boundary**: Public users can never read, browse, or list reports. The public status page must only return status information for one exact reference code.
 3. **Staff Authorization**: Every staff action must re-verify role and department permissions on the server before reading or mutating data.
 4. **UI Design System**: Strictly follow `docs/VOSS.org_design.md`:

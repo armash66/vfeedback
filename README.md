@@ -112,8 +112,8 @@ Students frequently share a small number of public IP addresses on campus Wi-Fi:
 
 - **Per Network**: 120 reports per 10 minutes and 600 status lookups per 10 minutes based on an HMAC-SHA256 hash of the client IP and current UTC date.
 - **Per Device**: An `HttpOnly`, `SameSite=Lax` cookie (`vf_device`) set for 1 day limits submissions to 5 reports per 10 minutes per device. Keys are hashed via HMAC before storage. If the cookie is missing, only the per-network limit applies.
-- **Automatic Pruning**: Stale rate-limit windows older than 1 hour are pruned opportunistically (~1 in 100 requests).
-- **Deployment Note**: Read client addresses only from a proxy you control. If the app is exposed directly, a client can fake the forwarded-for header.
+- **Automatic Pruning**: Stale rate-limit windows older than 50 minutes are pruned at most once per minute asynchronously. Rate-limit rows are removed within an hour, and the device cookie lasts one day.
+- **Deployment Note**: Configure `TRUST_PROXY` (`none`, `cloudflare`, or `proxy`) to match your infrastructure. Read client addresses only from a proxy you control. If the app is exposed directly, a client can fake the forwarded-for header.
 
 ### 3. Idempotency (`submission_id`)
 
@@ -138,5 +138,5 @@ Student privacy is an absolute constraint:
 - Students never register or log in.
 - Reports are completely anonymous.
 - No student names, roll numbers, or IP addresses are stored with or linked to reports.
-- A random device cookie, stored only as a hash, limits repeated submissions for one day. It is not linked to any report.
+- Rate-limit rows are removed within an hour, and the device cookie lasts one day. It is not linked to any report.
 - Public users cannot browse or enumerate reports; the `/status` route only returns information for one exact reference code.

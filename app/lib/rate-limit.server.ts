@@ -1,22 +1,40 @@
 import { createHmac } from "node:crypto";
+import { isIP } from "node:net";
 import { getPool } from "../db/client.server.js";
+import { getSessionSecret } from "./session-secret.server.js";
 
 export const TOO_MANY_REQUESTS_MESSAGE = "Too many requests. Please try again in a few minutes.";
 
+let lastCleanupMs = 0;
+
 export function getClientAddress(request: Request): string {
-  const cfConnectingIp = request.headers.get("cf-connecting-ip");
-  if (cfConnectingIp && cfConnectingIp.trim()) {
-    return cfConnectingIp.trim();
+  const trustProxy = (process.env.TRUST_PROXY || "none").trim().toLowerCase();
+
+  if (trustProxy === "cloudflare") {
+    const cfConnectingIp = request.headers.get("cf-connecting-ip")?.trim();
+    if (cfConnectingIp && isIP(cfConnectingIp) !== 0) {
+      return cfConnectingIp;
+    }
+    return "unknown";
   }
-  const xForwardedFor = request.headers.get("x-forwarded-for");
-  if (xForwardedFor && xForwardedFor.trim()) {
-    return xForwardedFor.split(",")[0].trim();
+
+  if (trustProxy === "proxy") {
+    const xForwardedFor = request.headers.get("x-forwarded-for");
+    if (xForwardedFor) {
+      const parts = xForwardedFor.split(",");
+      const rightmost = parts[parts.length - 1].trim();
+      if (rightmost && isIP(rightmost) !== 0) {
+        return rightmost;
+      }
+    }
+    return "unknown";
   }
+
   return "unknown";
 }
 
 export function getRateLimitKey(prefix: string, clientAddress: string): string {
-  const secret = process.env.SESSION_SECRET || "fallback-secret";
+  const secret = getSessionSecret();
   const dateStr = new Date().toISOString().slice(0, 10);
   const hmac = createHmac("sha256", secret).update(`${clientAddress}:${dateStr}`).digest("hex");
   return `${prefix}:${hmac}`;
@@ -46,14 +64,16 @@ export async function checkRateLimit(
 
   const pool = getPool();
 
-  // Opportunistic cleanup: ~1 in 100 requests (3/256 ≈ 1.17%)
-  // Uses crypto.getRandomValues without Math.random
-  const rand = new Uint8Array(1);
-  crypto.getRandomValues(rand);
-  if (rand[0] < 3) {
+  // Prune rows older than at least 50 minutes or the active window duration at most once per minute per process asynchronously
+  if (nowMs - lastCleanupMs >= 60_000) {
+    lastCleanupMs = nowMs;
+    const retentionSeconds = Math.max(3000, windowSeconds);
     pool
-      .query(`DELETE FROM rate_limits WHERE window_start < NOW() - INTERVAL '1 hour'`)
-      .catch((err) => console.error("Rate limit cleanup error:", err));
+      .query(`DELETE FROM rate_limits WHERE window_start < NOW() - ($1 * INTERVAL '1 second')`, [retentionSeconds])
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("Rate limit cleanup error:", msg);
+      });
   }
 
   const result = await pool.query<{ count: number }>(

@@ -153,34 +153,35 @@ export async function action({ request, params }: Route.ActionArgs) {
     }
   }
 
-  // 5. Rate limiting for shared campus networks:
-  // (a) Per network: 120 reports per 10 minutes
-  const clientAddress = getClientAddress(request);
-  const networkKey = getRateLimitKey("network", clientAddress);
-  const networkLimit = await checkRateLimit(networkKey, 120, 600);
-  if (!networkLimit.allowed) {
-    return { errors: [TOO_MANY_REQUESTS_MESSAGE] };
-  }
-
-  // (b) Per device: 5 reports per 10 minutes using HMAC of device cookie (if present)
-  const deviceId = getDeviceCookie(request);
-  if (deviceId) {
-    const deviceKey = getRateLimitKey("device", deviceId);
-    const deviceLimit = await checkRateLimit(deviceKey, 5, 600);
-    if (!deviceLimit.allowed) {
+  // 5. Rate limiting & idempotent report creation
+  try {
+    // (a) Per network: 120 reports per 10 minutes
+    const clientAddress = getClientAddress(request);
+    const networkKey = getRateLimitKey("network", clientAddress);
+    const networkLimit = await checkRateLimit(networkKey, 120, 600);
+    if (!networkLimit.allowed) {
       return { errors: [TOO_MANY_REQUESTS_MESSAGE] };
     }
-  }
 
-  // 6. Idempotent report creation
-  try {
+    // (b) Per device: 5 reports per 10 minutes using HMAC of device cookie (if present)
+    const deviceId = getDeviceCookie(request);
+    if (deviceId) {
+      const deviceKey = getRateLimitKey("device", deviceId);
+      const deviceLimit = await checkRateLimit(deviceKey, 5, 600);
+      if (!deviceLimit.allowed) {
+        return { errors: [TOO_MANY_REQUESTS_MESSAGE] };
+      }
+    }
+
+    // 6. Idempotent report creation
     const result = await createReport(payload);
     if (!result.ok) {
       return { errors: result.errors };
     }
     return redirect(`/done/${result.code}`);
-  } catch (error: any) {
-    console.error("Action error:", error);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("Action error:", msg);
     return {
       errors: [GENERIC_ERROR_MESSAGE],
     };
