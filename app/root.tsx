@@ -18,12 +18,13 @@ import { buttonVariants } from "~/components/ui/button-variants";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "~/components/ui/sheet";
 import { EmptyState } from "~/components/empty-state";
 import { cn } from "~/lib/utils";
+import { getAppUrl } from "~/lib/app-url";
 
 export const links: Route.LinksFunction = () => [];
 
 export async function loader() {
   return {
-    appUrl: process.env.APP_URL || "http://localhost:5173",
+    appUrl: getAppUrl(),
   };
 }
 
@@ -67,7 +68,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <body className="bg-background text-foreground flex min-h-screen flex-col antialiased">
         <a
           href="#content"
-          className="focus:bg-background focus:text-foreground focus:ring-ring focus:border-border sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:rounded-md focus:border focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-sm focus:outline-none focus:ring-2"
+          className="focus:bg-background focus:text-foreground focus:ring-ring focus:border-border sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:rounded-md focus:border focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:outline-none focus:ring-2"
         >
           Skip to content
         </a>
@@ -101,7 +102,13 @@ function Header() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
   useEffect(() => {
-    const isDark = document.documentElement.classList.contains("dark");
+    let isDark = document.documentElement.classList.contains("dark");
+    try {
+      const saved = localStorage.getItem("voss-theme");
+      if (saved) {
+        isDark = saved === "dark";
+      }
+    } catch {}
     setTheme(isDark ? "dark" : "light");
   }, []);
 
@@ -110,17 +117,21 @@ function Header() {
     setTheme(nextTheme);
     if (nextTheme === "dark") {
       document.documentElement.classList.add("dark");
-      localStorage.setItem("voss-theme", "dark");
+      try {
+        localStorage.setItem("voss-theme", "dark");
+      } catch {}
     } else {
       document.documentElement.classList.remove("dark");
-      localStorage.setItem("voss-theme", "light");
+      try {
+        localStorage.setItem("voss-theme", "light");
+      } catch {}
     }
   };
 
   return (
     <header className="bg-background/95 sticky top-0 z-40 border-b backdrop-blur-sm">
       <div className="container flex h-16 items-center gap-8">
-        <Link to="/" className="flex min-h-11 shrink-0 items-center gap-2" aria-label="vfeedback home">
+        <Link to="/" className="flex min-h-11 min-w-11 shrink-0 items-center gap-2" aria-label="vfeedback home">
           <span className="text-xl font-bold tracking-tight">vfeedback</span>
           <span className="bg-brand size-2 rounded-sm" aria-hidden />
         </Link>
@@ -133,7 +144,7 @@ function Header() {
                 to={link.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "hover:text-foreground relative flex h-full items-center text-sm font-medium transition-colors",
+                  "hover:text-foreground relative flex h-full min-h-11 min-w-11 items-center px-2 text-sm font-medium transition-colors",
                   active
                     ? "text-foreground after:bg-brand after:absolute after:inset-x-0 after:bottom-0 after:h-0.5"
                     : "text-muted-foreground",
@@ -148,7 +159,8 @@ function Header() {
           <Button
             type="button"
             variant="ghost"
-            size="icon"
+            size="icon-lg"
+            className="min-h-11 min-w-11"
             onClick={toggleTheme}
             aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           >
@@ -156,14 +168,19 @@ function Header() {
             <Moon className="size-4 dark:hidden" aria-hidden />
             <span className="sr-only">{theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}</span>
           </Button>
-          <Button variant="outline" disabled className="hidden md:inline-flex" title="Staff sign in (coming soon)">
+          <Button
+            variant="outline"
+            disabled
+            className="hidden min-h-11 min-w-11 md:inline-flex"
+            title="Staff sign in (coming soon)"
+          >
             Staff sign in
           </Button>
           <div className="md:hidden">
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger
                 render={
-                  <Button variant="ghost" size="icon" aria-label="Open navigation">
+                  <Button variant="ghost" size="icon-lg" className="min-h-11 min-w-11" aria-label="Open navigation">
                     <Menu className="size-5" aria-hidden />
                   </Button>
                 }
@@ -171,7 +188,9 @@ function Header() {
               <SheetContent className="w-[min(90vw,360px)]! gap-0">
                 <SheetHeader className="border-b p-5">
                   <SheetTitle>vfeedback</SheetTitle>
-                  <SheetDescription>Anonymous feedback for campus places.</SheetDescription>
+                  <SheetDescription>
+                    Reports are anonymous. We do not store your name, roll number or IP address with your report.
+                  </SheetDescription>
                 </SheetHeader>
                 <nav aria-label="Mobile navigation" className="grid gap-1 p-3">
                   {navLinks.map(({ href, label, icon: Icon }) => {
@@ -194,7 +213,7 @@ function Header() {
                   })}
                 </nav>
                 <div className="mt-auto border-t p-5">
-                  <Button variant="outline" disabled className="w-full">
+                  <Button variant="outline" disabled className="min-h-11 w-full">
                     Staff sign in
                   </Button>
                 </div>
@@ -264,7 +283,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
           )
         }
         action={
-          <Link to="/" className={buttonVariants({ variant: "default" })}>
+          <Link to="/" className={buttonVariants({ variant: "default", size: "lg" })}>
             Back to home
           </Link>
         }

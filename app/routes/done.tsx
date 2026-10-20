@@ -48,8 +48,7 @@ export default function DonePage({ loaderData }: Route.ComponentProps) {
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Feedback received.</h1>
           <p className="text-muted-foreground text-base leading-relaxed">
-            Your feedback has been submitted anonymously. Save your reference code to check whether it has been reviewed
-            or resolved.
+            Reports are anonymous. We do not store your name, roll number or IP address with your report.
           </p>
         </div>
 
@@ -62,7 +61,7 @@ export default function DonePage({ loaderData }: Route.ComponentProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Button type="button" variant="outline" onClick={handleCopy} className="w-full gap-2">
+            <Button type="button" variant="outline" size="lg" onClick={handleCopy} className="w-full gap-2">
               {copied ? (
                 <>
                   <Check className="text-success size-4" aria-hidden />
@@ -79,10 +78,13 @@ export default function DonePage({ loaderData }: Route.ComponentProps) {
         </Card>
 
         <div className="flex flex-wrap gap-3">
-          <Link to={`/status?code=${encodeURIComponent(code)}`} className={buttonVariants({ variant: "outline" })}>
+          <Link
+            to={`/status?code=${encodeURIComponent(code)}`}
+            className={buttonVariants({ variant: "outline", size: "lg" })}
+          >
             Check status now
           </Link>
-          <Link to="/" className={buttonVariants({ variant: "default" })}>
+          <Link to="/" className={buttonVariants({ variant: "default", size: "lg" })}>
             Send another report
           </Link>
         </div>
@@ -96,8 +98,7 @@ export default function DonePage({ loaderData }: Route.ComponentProps) {
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed">
             <p className="text-foreground">
-              Because VFeedback does not collect names, email addresses, or roll numbers, your word-based code is the{" "}
-              <strong>only key</strong> to track updates on this report.
+              Reports are anonymous. We do not store your name, roll number or IP address with your report.
             </p>
             <p className="text-muted-foreground">
               Staff will update the status once they review or take action on the place you reported.

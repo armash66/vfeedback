@@ -9,6 +9,7 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
+import { formatDate } from "~/lib/format";
 
 export const meta: Route.MetaFunction = () => {
   return [
@@ -74,14 +75,16 @@ export default function StatusPage({ loaderData }: Route.ComponentProps) {
               type="text"
               name="code"
               defaultValue={code || searchParams.get("code") || ""}
-              placeholder="e.g. spicy-samosa-42"
+              placeholder="e.g. spicy-samosa-k7q4mz"
               className="font-mono flex-1 min-w-[240px]"
               required
               autoCapitalize="none"
               autoCorrect="off"
               spellCheck="false"
             />
-            <Button type="submit">Check status</Button>
+            <Button type="submit" size="lg">
+              Check status
+            </Button>
           </div>
         </Form>
 
@@ -97,9 +100,7 @@ export default function StatusPage({ loaderData }: Route.ComponentProps) {
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <p className="text-base font-semibold">{getStatusText(report.status)}</p>
-                  <p className="text-muted-foreground font-mono text-xs">
-                    Submitted: {new Date(report.createdAt).toLocaleDateString()}
-                  </p>
+                  <p className="text-muted-foreground font-mono text-xs">Submitted: {formatDate(report.createdAt)}</p>
                 </CardContent>
               </Card>
             ) : (

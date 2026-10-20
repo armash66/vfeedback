@@ -24,6 +24,10 @@ export const reports = pgTable(
       .references(() => places.id),
     rating: integer("rating"),
     message: text("message").notNull().default(""),
+    highlights: text("highlights")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     status: text("status").notNull().default("new"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

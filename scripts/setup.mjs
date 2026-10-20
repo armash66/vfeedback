@@ -9,6 +9,18 @@ const envExamplePath = resolve(rootDir, ".env.example");
 
 const isCheck = process.argv.includes("--check");
 
+function stripQuotes(val) {
+  if (!val) return val;
+  const trimmed = val.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length >= 2)
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
 function parseEnv(content) {
   const result = new Map();
   const lines = content.split(/\r?\n/);
@@ -19,7 +31,7 @@ function parseEnv(content) {
     if (eqIdx !== -1) {
       const key = trimmed.slice(0, eqIdx).trim();
       const val = trimmed.slice(eqIdx + 1).trim();
-      result.set(key, val);
+      result.set(key, stripQuotes(val));
     }
   }
   return result;
@@ -31,7 +43,6 @@ function isLocalHost(urlStr) {
     const host = parsed.hostname.toLowerCase();
     return host === "127.0.0.1" || host === "localhost";
   } catch {
-    // If URL parsing fails, check if the string contains 127.0.0.1 or localhost
     return urlStr.includes("127.0.0.1") || urlStr.includes("localhost");
   }
 }
@@ -40,12 +51,17 @@ function dockerVolumeExists(volumeName) {
   try {
     const output = execSync(`docker volume ls -q --filter name=^${volumeName}$`, {
       encoding: "utf-8",
-      stdio: ["ignore", "pipe", "ignore"],
+      stdio: ["ignore", "pipe", "pipe"],
     }).trim();
     return output.split(/\r?\n/).some((vol) => vol.trim() === volumeName);
-  } catch {
-    // Docker is missing, not running, or failed: skip check
-    return false;
+  } catch (err) {
+    if (err.code === "ENOENT") {
+      // Docker is not installed: skip check
+      return false;
+    }
+    // Docker is installed, but command failed (e.g. daemon not running)
+    console.error("Could not check for an existing database volume. Start Docker Desktop and run npm run setup again.");
+    process.exit(1);
   }
 }
 
@@ -67,6 +83,34 @@ if (!existsSync(envExamplePath)) {
   process.exit(1);
 }
 
+const requiredKeys = [
+  "APP_ENV",
+  "POSTGRES_USER",
+  "POSTGRES_DB",
+  "POSTGRES_PORT",
+  "POSTGRES_PASSWORD",
+  "DATABASE_URL",
+  "SESSION_SECRET",
+];
+
+function validateEnv(envMap) {
+  const missingKeys = [];
+  const unconfiguredKeys = [];
+
+  for (const key of requiredKeys) {
+    if (!envMap.has(key)) {
+      missingKeys.push(key);
+    } else {
+      const val = envMap.get(key);
+      if (!val || val === "change-me") {
+        unconfiguredKeys.push(key);
+      }
+    }
+  }
+
+  return { missingKeys, unconfiguredKeys };
+}
+
 if (isCheck) {
   if (!existsSync(envPath)) {
     console.error("Check failed: .env file does not exist. Run 'npm run setup' first.");
@@ -74,28 +118,7 @@ if (isCheck) {
   }
 
   const env = parseEnv(readFileSync(envPath, "utf-8"));
-  const requiredKeys = [
-    "APP_ENV",
-    "POSTGRES_USER",
-    "POSTGRES_DB",
-    "POSTGRES_PORT",
-    "POSTGRES_PASSWORD",
-    "DATABASE_URL",
-    "SESSION_SECRET",
-  ];
-  const missingKeys = [];
-  const unconfiguredKeys = [];
-
-  for (const key of requiredKeys) {
-    if (!env.has(key)) {
-      missingKeys.push(key);
-    } else {
-      const val = env.get(key);
-      if (!val || val === "change-me") {
-        unconfiguredKeys.push(key);
-      }
-    }
-  }
+  const { missingKeys, unconfiguredKeys } = validateEnv(env);
 
   if (missingKeys.length > 0 || unconfiguredKeys.length > 0) {
     if (missingKeys.length > 0) {
@@ -112,11 +135,15 @@ if (isCheck) {
 }
 
 // Setup mode
+const envExampleContent = readFileSync(envExamplePath, "utf-8");
+const exampleEnv = parseEnv(envExampleContent);
+
 let baseContent = "";
-if (existsSync(envPath)) {
+const envExists = existsSync(envPath);
+if (envExists) {
   baseContent = readFileSync(envPath, "utf-8");
 } else {
-  baseContent = readFileSync(envExamplePath, "utf-8");
+  baseContent = envExampleContent;
 }
 
 const currentEnv = parseEnv(baseContent);
@@ -150,7 +177,7 @@ const port = currentEnv.get("POSTGRES_PORT") || "5432";
 
 let databaseUrl = currentEnv.get("DATABASE_URL") || "";
 
-// Rebuild DATABASE_URL if empty OR points at 127.0.0.1 or localhost
+// Rebuild DATABASE_URL if empty OR points at 127.0.0.1 or localhost, or if it had change-me password
 if (!databaseUrl || isLocalHost(databaseUrl)) {
   const encodedUser = encodeURIComponent(user);
   const encodedPassword = encodeURIComponent(postgresPassword);
@@ -188,15 +215,37 @@ for (const line of lines) {
   }
 }
 
-if (!seenKeys.has("POSTGRES_PASSWORD")) {
-  updatedLines.push(`POSTGRES_PASSWORD=${postgresPassword}`);
-}
-if (!seenKeys.has("SESSION_SECRET")) {
-  updatedLines.push(`SESSION_SECRET=${sessionSecret}`);
-}
-if (!seenKeys.has("DATABASE_URL")) {
-  updatedLines.push(`DATABASE_URL=${databaseUrl}`);
+// When .env already exists, append any keys that exist in .env.example but are missing from .env
+for (const [key, val] of exampleEnv.entries()) {
+  if (!seenKeys.has(key)) {
+    seenKeys.add(key);
+    if (key === "POSTGRES_PASSWORD") {
+      updatedLines.push(`${key}=${postgresPassword}`);
+    } else if (key === "SESSION_SECRET") {
+      updatedLines.push(`${key}=${sessionSecret}`);
+    } else if (key === "DATABASE_URL") {
+      updatedLines.push(`${key}=${databaseUrl}`);
+    } else {
+      updatedLines.push(`${key}=${val}`);
+    }
+  }
 }
 
-writeEnvSafely(envPath, updatedLines.join("\n") + "\n");
+const newEnvContent = updatedLines.join("\n") + "\n";
+writeEnvSafely(envPath, newEnvContent);
+
+// Run the same validation as --check. Report success only if that validation passes.
+const finalEnv = parseEnv(newEnvContent);
+const { missingKeys, unconfiguredKeys } = validateEnv(finalEnv);
+
+if (missingKeys.length > 0 || unconfiguredKeys.length > 0) {
+  if (missingKeys.length > 0) {
+    console.error(`Check failed: missing environment variables: ${missingKeys.join(", ")}`);
+  }
+  if (unconfiguredKeys.length > 0) {
+    console.error(`Check failed: unconfigured environment variables: ${unconfiguredKeys.join(", ")}`);
+  }
+  process.exit(1);
+}
+
 console.log("Configuration setup complete: .env is up to date.");

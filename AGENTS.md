@@ -4,7 +4,7 @@
 
 Every lab and department in our college (Vidyalankar Institute of Technology) has its own QR code or paper form for feedback. Students rarely use them and nothing is in one place. VFeedback replaces all of them with one website and one dashboard.
 
-- **Students**: Open one link (no login, no QR code required), pick a place (lab, canteen, classroom, Wi-Fi, etc.), choose _Rate_ / _Report a problem_ / _Suggest_, answer 2–4 quick questions, receive a word-based reference code (e.g., `spicy-samosa-42`), and check status later using that reference code.
+- **Students**: Open one link (no login, no QR code required), pick a place (lab, canteen, classroom, Wi-Fi, etc.), choose _Rate_ / _Report a problem_ / _Suggest_, answer 2–4 quick questions, receive a word-based reference code (e.g., `spicy-samosa-k7q4mz`), and check status later using that reference code.
 - **Staff**: Log in, view reports in a single unified list filtered by department, place, type, and status, update status, and add notes. Department staff see only their assigned department. Super admins see everything across all departments.
 
 ## Tech Stack
@@ -20,7 +20,7 @@ Do not substitute any parts of the stack without explicit approval:
 
 ## Hard Constraints
 
-1. **Student Privacy**: Students do not need accounts. Never collect a student's name, roll number, or IP address.
+1. **Student Privacy**: Students do not need accounts. Reports are anonymous. We do not store your name, roll number or IP address with your report.
 2. **Access Boundary**: Public users can never read, browse, or list reports. The public status page must only return status information for one exact reference code.
 3. **Staff Authorization**: Every staff action must re-verify role and department permissions on the server before reading or mutating data.
 4. **UI Design System**: Strictly follow `docs/VOSS.org_design.md`:
@@ -28,7 +28,7 @@ Do not substitute any parts of the stack without explicit approval:
    - Monochrome primary buttons.
    - Brand orange reserved only for focus rings, selection states, and small accents.
    - Chart series may use the spec's chart palette (neutral axes, orange primary series, readable mono values as defined in Section 9 "Application components not defined by the source — extensions"), and nothing else (buttons, text, borders) may.
-   - Flat surfaces: no box-shadows or gradients.
-   - Minimum 44px touch targets.
+   - No shadows on cards, panels, inputs or buttons. Floating layers (menus, selects, sheets, dialogs) may use the shadow from the vboard components.
+   - Student-facing controls are at least 44px tall at every width. Staff dashboard controls may use the compact vboard sizes from md up.
    - Full support for light and dark themes using tokens defined in the design spec.
 5. **No Secrets in Code**: Read all credentials and secrets (`DATABASE_URL`, `SESSION_SECRET`, etc.) strictly from environment variables. Never hard-code credentials or commit secrets.

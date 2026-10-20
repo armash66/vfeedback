@@ -1,6 +1,6 @@
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { resolve } from "node:path";
-import { db, pool } from "../app/db/client.server.js";
+import { getDb, getPool } from "../app/db/client.server.js";
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -30,9 +30,14 @@ if (!isLocal && confirmedHost !== host) {
 }
 
 async function run() {
+  const pool = getPool();
+  const db = getDb();
+
   try {
     console.log(`Running migrations on ${host}...`);
-    await migrate(db, { migrationsFolder: resolve(process.cwd(), "drizzle") });
+    await migrate(db, {
+      migrationsFolder: resolve(process.cwd(), "drizzle"),
+    });
     console.log("Migrations applied successfully.");
   } catch (error) {
     console.error("Migration failed:", error);

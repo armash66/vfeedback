@@ -1,7 +1,8 @@
 import { Form, Link, useSearchParams } from "react-router";
 import { asc, eq } from "drizzle-orm";
+import { useState } from "react";
 import { ArrowRight, Check, MapPinOff } from "lucide-react";
-import { db } from "../db/client.server.js";
+import { getDb } from "../db/client.server.js";
 import { places } from "../db/schema.js";
 import type { Route } from "./+types/home";
 import { Button } from "~/components/ui/button";
@@ -23,7 +24,7 @@ export const meta: Route.MetaFunction = () => {
 
 export async function loader() {
   try {
-    const list = await db
+    const list = await getDb()
       .select({
         id: places.id,
         name: places.name,
@@ -51,7 +52,7 @@ export async function loader() {
 
 export default function Home({ loaderData }: Route.ComponentProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const search = searchParams.get("q") || "";
+  const [search, setSearch] = useState("");
   const selectedPlace = searchParams.get("place") || "";
 
   const allPlaces = loaderData.places;
@@ -68,7 +69,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     } else {
       nextParams.set("place", id);
     }
-    setSearchParams(nextParams);
+    setSearchParams(nextParams, { replace: true });
   };
 
   const buildReportUrl = (type: string) => {
@@ -89,8 +90,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             One place to speak up about your campus.
           </h1>
           <p className="text-muted-foreground max-w-[65ch] text-base leading-relaxed">
-            Pick a place, answer 2–4 quick questions, and receive a private reference code. No student accounts, no roll
-            numbers, completely anonymous.
+            Reports are anonymous. We do not store your name, roll number or IP address with your report.
           </p>
         </section>
 
@@ -103,15 +103,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
               type="search"
               placeholder="Search lab, canteen, Wi-Fi..."
               value={search}
-              onChange={(e) => {
-                const next = new URLSearchParams(searchParams);
-                if (e.target.value) {
-                  next.set("q", e.target.value);
-                } else {
-                  next.delete("q");
-                }
-                setSearchParams(next);
-              }}
+              onChange={(e) => setSearch(e.target.value)}
             />
           </div>
 
@@ -122,15 +114,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                 title="No matching places"
                 body={`We couldn't find any places matching "${search}".`}
                 action={
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      const next = new URLSearchParams(searchParams);
-                      next.delete("q");
-                      setSearchParams(next);
-                    }}
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => setSearch("")}>
                     Clear search
                   </Button>
                 }
@@ -148,7 +132,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                     aria-pressed={isSelected}
                     onClick={() => handleSelectPlace(place.id)}
                     className={cn(
-                      "h-9 gap-1.5 rounded-full px-3.5 text-xs font-normal transition-all",
+                      "min-h-11 gap-1.5 rounded-full px-4 text-xs font-normal transition-all",
                       isSelected && "border-brand ring-brand ring-1 font-medium",
                     )}
                   >
@@ -222,7 +206,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                   id="sidebar-code"
                   type="text"
                   name="code"
-                  placeholder="e.g. spicy-samosa-42"
+                  placeholder="e.g. spicy-samosa-k7q4mz"
                   className="font-mono text-sm"
                   required
                   autoCapitalize="none"
@@ -230,7 +214,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                   spellCheck="false"
                 />
               </div>
-              <Button type="submit" className="w-full">
+              <Button type="submit" size="lg" className="w-full">
                 Check status
               </Button>
             </Form>

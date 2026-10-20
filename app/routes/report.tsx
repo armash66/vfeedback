@@ -2,9 +2,10 @@ import { Form, Link, redirect, useActionData, useNavigation, useSearchParams } f
 import { asc, eq } from "drizzle-orm";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Check, Lock } from "lucide-react";
-import { db } from "../db/client.server.js";
+import { getDb } from "../db/client.server.js";
 import { places } from "../db/schema.js";
-import { createReport, validateReportInput } from "../lib/reports.server.js";
+import { HIGHLIGHT_OPTIONS, validateReportInput } from "../lib/report-input.js";
+import { createReport } from "../lib/reports.server.js";
 import type { Route } from "./+types/report";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -37,7 +38,7 @@ export async function loader({ params }: Route.LoaderArgs) {
   }
 
   try {
-    const list = await db
+    const list = await getDb()
       .select({
         id: places.id,
         name: places.name,
@@ -71,19 +72,14 @@ export async function action({ request, params }: Route.ActionArgs) {
   const placeId = formData.get("placeId");
   const rawRating = formData.get("rating");
   const note = (formData.get("note") as string) || "";
-  const highlights = formData.getAll("highlights") as string[];
-
-  let finalMessage = note.trim();
-  if (type === "rate" && highlights.length > 0) {
-    const highlightsText = `Highlights: ${highlights.join(", ")}`;
-    finalMessage = finalMessage ? `${highlightsText}\n\n${finalMessage}` : highlightsText;
-  }
+  const highlights = formData.getAll("highlights").map(String);
 
   const payload = {
-    type,
-    placeId,
+    type: String(type || ""),
+    placeId: typeof placeId === "string" ? placeId : "",
     rating: rawRating ? Number(rawRating) : null,
-    message: finalMessage,
+    message: note.trim(),
+    highlights: type === "rate" ? highlights : [],
   };
 
   const validation = validateReportInput(payload);
@@ -93,10 +89,14 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   try {
     const result = await createReport(payload);
+    if (!result.ok) {
+      return { errors: result.errors };
+    }
     return redirect(`/done/${result.code}`);
   } catch (error: any) {
+    console.error("Action error:", error);
     return {
-      errors: [error.message || "Failed to submit report. Please try again."],
+      errors: ["Something went wrong. Please try again."],
     };
   }
 }
@@ -107,15 +107,6 @@ const RATING_LABELS = [
   { value: 3, label: "Okay" },
   { value: 4, label: "Good" },
   { value: 5, label: "Peak" },
-];
-
-const HIGHLIGHT_OPTIONS = [
-  "Cleanliness",
-  "Speed / Performance",
-  "Staff Helpful",
-  "Quiet & Calm",
-  "Spacious",
-  "Lighting / AC",
 ];
 
 export default function ReportPage({ loaderData }: Route.ComponentProps) {
@@ -178,7 +169,7 @@ export default function ReportPage({ loaderData }: Route.ComponentProps) {
           </Link>
           <PageHeader
             title={titleMap[type]}
-            description="Help campus staff improve facilities and services. Completely anonymous."
+            description="Reports are anonymous. We do not store your name, roll number or IP address with your report."
             eyebrow="Campus feedback"
           />
         </div>
@@ -222,7 +213,7 @@ export default function ReportPage({ loaderData }: Route.ComponentProps) {
                     aria-pressed={isSelected}
                     onClick={() => setSelectedPlace(place.id)}
                     className={cn(
-                      "h-9 gap-1.5 rounded-full px-3.5 text-xs font-normal transition-all",
+                      "min-h-11 gap-1.5 rounded-full px-4 text-xs font-normal transition-all",
                       isSelected && "border-brand ring-brand ring-1 font-medium",
                     )}
                   >
@@ -279,7 +270,7 @@ export default function ReportPage({ loaderData }: Route.ComponentProps) {
                         aria-pressed={isSelected}
                         onClick={() => toggleHighlight(opt)}
                         className={cn(
-                          "h-8 gap-1 rounded-full px-3 text-xs font-normal transition-all",
+                          "min-h-11 gap-1.5 rounded-full px-3.5 text-xs font-normal transition-all",
                           isSelected && "border-brand ring-brand ring-1 font-medium",
                         )}
                       >
@@ -322,7 +313,7 @@ export default function ReportPage({ loaderData }: Route.ComponentProps) {
           </div>
 
           {/* Submit button */}
-          <Button type="submit" disabled={isSubmitting} className="w-full">
+          <Button type="submit" size="lg" disabled={isSubmitting} className="w-full min-h-11">
             {isSubmitting ? "Sending..." : "Submit feedback"}
           </Button>
         </Form>
@@ -338,14 +329,14 @@ export default function ReportPage({ loaderData }: Route.ComponentProps) {
             <ul className="text-muted-foreground list-inside list-disc space-y-2.5 text-sm leading-relaxed">
               <li>
                 Your report gets a word-based reference code like{" "}
-                <code className="text-foreground font-mono font-medium">spicy-samosa-42</code>.
+                <code className="text-foreground font-mono font-medium">spicy-samosa-k7q4mz</code>.
               </li>
               <li>Department and facility staff for that place review the report and update progress.</li>
               <li>You can check back on the status anytime using your reference code.</li>
             </ul>
             <div className="border-border text-muted-foreground flex items-center gap-2 border-t pt-3 text-xs">
               <Lock className="size-3.5 shrink-0" aria-hidden />
-              <span>No name or roll number is collected.</span>
+              <span>Reports are anonymous. We do not store your name, roll number or IP address with your report.</span>
             </div>
           </CardContent>
         </Card>

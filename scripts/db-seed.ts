@@ -1,4 +1,4 @@
-import { db, pool } from "../app/db/client.server.js";
+import { getDb, getPool } from "../app/db/client.server.js";
 import { places } from "../app/db/schema.js";
 
 const appEnv = process.env.APP_ENV;
@@ -19,6 +19,9 @@ const seedPlaces = [
 ];
 
 async function run() {
+  const pool = getPool();
+  const db = getDb();
+
   try {
     console.log("Seeding places...");
     for (const place of seedPlaces) {
