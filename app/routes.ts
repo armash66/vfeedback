@@ -5,4 +5,5 @@ export default [
   route("report/:type", "routes/report.tsx"),
   route("done/:code", "routes/done.tsx"),
   route("status", "routes/status.tsx"),
+  route("healthz", "routes/healthz.ts"),
 ] satisfies RouteConfig;

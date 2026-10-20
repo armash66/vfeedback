@@ -1,23 +1,39 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, integer, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  check,
+  index,
+  integer,
+  pgTable,
+  primaryKey,
+  serial,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 
 export const departments = pgTable("departments", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
 });
 
-export const places = pgTable("places", {
-  id: text("id").primaryKey(), // slug like "lab-2"
-  name: text("name").notNull(),
-  groupName: text("group_name").notNull(),
-  departmentId: integer("department_id").references(() => departments.id),
-  active: boolean("active").notNull().default(true),
-});
+export const places = pgTable(
+  "places",
+  {
+    id: text("id").primaryKey(), // slug like "lab-2"
+    name: text("name").notNull(),
+    groupName: text("group_name").notNull(),
+    departmentId: integer("department_id").references(() => departments.id),
+    active: boolean("active").notNull().default(true),
+  },
+  (table) => [index("places_department_id_idx").on(table.departmentId)],
+);
 
 export const reports = pgTable(
   "reports",
   {
     code: text("code").primaryKey(),
+    submissionId: uuid("submission_id").unique(),
     type: text("type").notNull(),
     placeId: text("place_id")
       .notNull()
@@ -37,6 +53,9 @@ export const reports = pgTable(
     check("reports_rating_check", sql`${table.rating} is null or (${table.rating} >= 1 and ${table.rating} <= 5)`),
     check("reports_message_length_check", sql`length(${table.message}) <= 1000`),
     check("reports_status_check", sql`${table.status} in ('new', 'in_progress', 'resolved', 'rejected')`),
+    index("reports_status_created_at_idx").on(table.status, table.createdAt.desc()),
+    index("reports_place_id_created_at_idx").on(table.placeId, table.createdAt.desc()),
+    index("reports_created_at_idx").on(table.createdAt.desc()),
   ],
 );
 
@@ -68,4 +87,14 @@ export const staff = pgTable(
     departmentId: integer("department_id").references(() => departments.id),
   },
   (table) => [check("staff_role_check", sql`${table.role} in ('super_admin', 'department')`)],
+);
+
+export const rateLimits = pgTable(
+  "rate_limits",
+  {
+    key: text("key").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    count: integer("count").notNull().default(1),
+  },
+  (table) => [primaryKey({ columns: [table.key, table.windowStart] })],
 );

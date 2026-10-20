@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { CODE_REGEX, generateCode, HIGHLIGHT_OPTIONS, validateReportInput } from "../app/lib/report-input.js";
 import { isUniqueViolation } from "../app/lib/reports.server.js";
-import * as client from "../app/db/client.server.js";
 
 describe("reports lib - pure tests", () => {
   describe("generateCode", () => {
@@ -199,6 +198,7 @@ describe("reports lib - pure tests", () => {
         }),
       };
 
+      const client = await import("../app/db/client.server.js");
       const spy = vi.spyOn(client, "getDb").mockReturnValue(mockDb as any);
 
       const { createReport } = await import("../app/lib/reports.server.js");
@@ -258,6 +258,10 @@ describe("reports lib - database integration tests", () => {
         await db.delete(places).where(eq(places.id, testPlaceId));
       } catch (e) {
         console.error("Cleanup error in integration afterAll:", e);
+      } finally {
+        try {
+          await poolInstance.end();
+        } catch {}
       }
     }
   });
@@ -315,5 +319,47 @@ describe("reports lib - database integration tests", () => {
     const { getReportStatus } = await import("../app/lib/reports.server.js");
     const status = await getReportStatus("spicy-samosa-zzzzzz");
     expect(status).toBeNull();
+  });
+
+  it("the same submission_id twice gives the same code and one row", async (ctx) => {
+    if (!isDbAvailable) {
+      ctx.skip();
+      return;
+    }
+
+    const { createReport } = await import("../app/lib/reports.server.js");
+    const { reports } = await import("../app/db/schema.js");
+    const { getDb } = await import("../app/db/client.server.js");
+    const { eq } = await import("drizzle-orm");
+
+    const submissionId = crypto.randomUUID();
+    const res1 = await createReport({
+      type: "rate",
+      placeId: testPlaceId,
+      rating: 5,
+      message: "Idempotency submission attempt 1",
+      submissionId,
+    });
+
+    expect(res1.ok).toBe(true);
+    if (!res1.ok) return;
+
+    const res2 = await createReport({
+      type: "rate",
+      placeId: testPlaceId,
+      rating: 5,
+      message: "Idempotency submission attempt 2",
+      submissionId,
+    });
+
+    expect(res2.ok).toBe(true);
+    if (!res2.ok) return;
+
+    expect(res1.code).toBe(res2.code);
+
+    const db = getDb();
+    const rows = await db.select().from(reports).where(eq(reports.submissionId, submissionId));
+    expect(rows.length).toBe(1);
+    expect(rows[0].code).toBe(res1.code);
   });
 });

@@ -30,16 +30,3 @@ export function getDb(): NodePgDatabase<typeof schema> {
   }
   return dbInstance;
 }
-
-// Lazy backwards-compatible exports
-export const db = new Proxy({} as NodePgDatabase<typeof schema>, {
-  get(_target, prop, receiver) {
-    return Reflect.get(getDb(), prop, receiver);
-  },
-});
-
-export const pool = new Proxy({} as pg.Pool, {
-  get(_target, prop, receiver) {
-    return Reflect.get(getPool(), prop, receiver);
-  },
-});

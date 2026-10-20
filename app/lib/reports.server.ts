@@ -31,10 +31,23 @@ export async function createReport(input: unknown): Promise<CreateReportResult> 
     return { ok: false, errors: validation.errors };
   }
 
-  const { type, placeId, rating, message, highlights } = validation.data;
+  const { type, placeId, rating, message, highlights, submissionId } = validation.data;
 
   try {
     const db = getDb();
+
+    // Idempotency check: if report with this submissionId already exists, return existing code
+    if (submissionId) {
+      const existing = await db
+        .select({ code: reports.code })
+        .from(reports)
+        .where(eq(reports.submissionId, submissionId))
+        .limit(1);
+
+      if (existing.length > 0) {
+        return { ok: true, code: existing[0].code };
+      }
+    }
 
     // Check that placeId exists in places with active = true
     const activePlace = await db
@@ -53,6 +66,7 @@ export async function createReport(input: unknown): Promise<CreateReportResult> 
       try {
         await db.insert(reports).values({
           code,
+          submissionId: submissionId || null,
           type,
           placeId,
           rating,
@@ -62,6 +76,19 @@ export async function createReport(input: unknown): Promise<CreateReportResult> 
         });
         return { ok: true, code };
       } catch (error: unknown) {
+        // If concurrent duplicate insertion occurred on submission_id:
+        if (submissionId && isUniqueViolation(error)) {
+          const existing = await db
+            .select({ code: reports.code })
+            .from(reports)
+            .where(eq(reports.submissionId, submissionId))
+            .limit(1);
+
+          if (existing.length > 0) {
+            return { ok: true, code: existing[0].code };
+          }
+        }
+
         if (isUniqueViolation(error) && attempt < maxAttempts - 1) {
           continue;
         }

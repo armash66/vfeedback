@@ -16,11 +16,11 @@ Do not substitute any parts of the stack without explicit approval:
 - **Styling**: Tailwind CSS v4 (conforming to `docs/VOSS.org_design.md`)
 - **Database & ORM**: PostgreSQL (Docker locally, Neon in production) managed via Drizzle ORM
 - **Testing & Code Quality**: Vitest, Prettier
-- **Authentication & Security (upcoming)**: Staff authentication via VOSS vauth (Better Auth), bot protection via Cloudflare Turnstile
+- **Authentication & Security (upcoming)**: Staff authentication via VOSS vauth (Better Auth), bot protection via Cloudflare Turnstile (optional and off by default for the pilot)
 
 ## Hard Constraints
 
-1. **Student Privacy**: Students do not need accounts. Reports are anonymous. We do not store your name, roll number or IP address with your report.
+1. **Student Privacy**: Students do not need accounts. Reports are anonymous. No IP address is stored with or linked to a report, and only a short-lived keyed hash is kept for rate limiting and deleted within an hour. A random device cookie, stored only as a hash, limits repeated submissions for one day. It is not linked to any report.
 2. **Access Boundary**: Public users can never read, browse, or list reports. The public status page must only return status information for one exact reference code.
 3. **Staff Authorization**: Every staff action must re-verify role and department permissions on the server before reading or mutating data.
 4. **UI Design System**: Strictly follow `docs/VOSS.org_design.md`:
@@ -32,3 +32,16 @@ Do not substitute any parts of the stack without explicit approval:
    - Student-facing controls are at least 44px tall at every width. Staff dashboard controls may use the compact vboard sizes from md up.
    - Full support for light and dark themes using tokens defined in the design spec.
 5. **No Secrets in Code**: Read all credentials and secrets (`DATABASE_URL`, `SESSION_SECRET`, etc.) strictly from environment variables. Never hard-code credentials or commit secrets.
+
+## Lessons from review
+
+- Never show raw errors to users.
+- Wrap browser storage access in try/catch.
+- Read Postgres SQLSTATE through the cause chain.
+- Env values may be quoted or contain special characters.
+- No hard-coded colours.
+- Use a fixed locale and time zone for dates.
+- Keep database access lazy so pure tests run without a database.
+- Only floating layers may have shadows.
+- Student controls are 44px.
+- A failed environment check is a warning unless it risks data loss.

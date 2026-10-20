@@ -15,6 +15,13 @@
       "when": 1792477828023,
       "tag": "0001_rainy_shadow_king",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792483356106,
+      "tag": "0002_whole_garia",
+      "breakpoints": true
     }
   ]
 }

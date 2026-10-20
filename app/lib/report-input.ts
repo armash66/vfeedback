@@ -282,6 +282,7 @@ export interface ValidReportInput {
   rating: number | null;
   message: string;
   highlights: string[];
+  submissionId?: string | null;
 }
 
 export type ValidateReportResult = { valid: true; data: ValidReportInput } | { valid: false; errors: string[] };
@@ -360,6 +361,19 @@ export function validateReportInput(input: unknown): ValidateReportResult {
     errors.push(`Message must be at least 5 characters for type '${type}'`);
   }
 
+  // Submission ID validation (optional UUID)
+  let submissionId: string | null = null;
+  if (raw.submissionId !== undefined && raw.submissionId !== null && raw.submissionId !== "") {
+    if (
+      typeof raw.submissionId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw.submissionId.trim())
+    ) {
+      errors.push("Invalid submission ID format");
+    } else {
+      submissionId = raw.submissionId.trim().toLowerCase();
+    }
+  }
+
   if (errors.length > 0) {
     return { valid: false, errors };
   }
@@ -372,6 +386,7 @@ export function validateReportInput(input: unknown): ValidateReportResult {
       rating,
       message,
       highlights,
+      submissionId,
     },
   };
 }

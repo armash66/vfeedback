@@ -50,6 +50,10 @@ export async function loader() {
   }
 }
 
+export function shouldRevalidate() {
+  return false;
+}
+
 export default function Home({ loaderData }: Route.ComponentProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
@@ -69,7 +73,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     } else {
       nextParams.set("place", id);
     }
-    setSearchParams(nextParams, { replace: true });
+    setSearchParams(nextParams, { replace: true, preventScrollReset: true });
   };
 
   const buildReportUrl = (type: string) => {

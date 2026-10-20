@@ -11,6 +11,13 @@ import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
 import { formatDate } from "~/lib/format";
 
+import {
+  checkRateLimit,
+  getClientAddress,
+  getRateLimitKey,
+  TOO_MANY_REQUESTS_MESSAGE,
+} from "../lib/rate-limit.server.js";
+
 export const meta: Route.MetaFunction = () => {
   return [
     { title: "Check report status | vfeedback" },
@@ -26,10 +33,24 @@ export async function loader({ request }: Route.LoaderArgs) {
   const code = url.searchParams.get("code");
 
   if (!code || !code.trim()) {
-    return { searched: false, report: null, code: "" };
+    return { searched: false, report: null, code: "", error: null };
   }
 
   const cleanCode = code.trim().toLowerCase();
+
+  // Check rate limit (600 requests per 10 minutes for shared networks)
+  const clientAddress = getClientAddress(request);
+  const rateLimitKey = getRateLimitKey("status", clientAddress);
+  const rateLimit = await checkRateLimit(rateLimitKey, 600, 600);
+  if (!rateLimit.allowed) {
+    return {
+      searched: true,
+      code: cleanCode,
+      report: null,
+      error: TOO_MANY_REQUESTS_MESSAGE,
+    };
+  }
+
   const report = await getReportStatus(cleanCode);
 
   return {
@@ -41,11 +62,12 @@ export async function loader({ request }: Route.LoaderArgs) {
           createdAt: report.createdAt.toISOString(),
         }
       : null,
+    error: null,
   };
 }
 
 export default function StatusPage({ loaderData }: Route.ComponentProps) {
-  const { searched, code, report } = loaderData;
+  const { searched, code, report, error } = loaderData;
   const [searchParams] = useSearchParams();
 
   return (
@@ -90,7 +112,14 @@ export default function StatusPage({ loaderData }: Route.ComponentProps) {
 
         {searched && (
           <section className="pt-2">
-            {report ? (
+            {error ? (
+              <div
+                role="alert"
+                className="border-destructive/40 bg-destructive/10 text-destructive rounded-lg border p-4 text-sm outline-none"
+              >
+                {error}
+              </div>
+            ) : report ? (
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between gap-4">
                   <div className="text-muted-foreground text-sm">
