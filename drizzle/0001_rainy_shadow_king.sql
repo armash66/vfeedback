@@ -1,0 +1,1 @@
+ALTER TABLE "reports" ADD COLUMN "highlights" text[] DEFAULT '{}'::text[] NOT NULL;
