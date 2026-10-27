@@ -54,6 +54,7 @@ The application will be running at `http://localhost:5173`.
 | `npm run db:generate`  | Generates new SQL migration files using Drizzle Kit.                          |
 | `npm run db:migrate`   | Applies pending SQL migrations to the database.                               |
 | `npm run db:seed`      | Seeds initial places and department test fixtures.                            |
+| `npm run db:provision` | Synchronizes `SUPER_ADMIN_EMAILS` allowlist into the database.                |
 | `npm test`             | Executes the Vitest test suite (pure unit & database integration tests).      |
 
 ---
@@ -140,3 +141,11 @@ Student privacy is an absolute constraint:
 - No student names, roll numbers, or IP addresses are stored with or linked to reports.
 - Rate-limit rows are removed within an hour, and the device cookie lasts one day. It is not linked to any report.
 - Public users cannot browse or enumerate reports; the `/status` route only returns information for one exact reference code.
+
+### 6. Authentication (VAuth)
+
+- **Single Sign-On**: Users sign in using VOSS VAuth (OAuth 2.1 / OIDC) with PKCE S256 and `openid profile email` scopes.
+- **Authority Separation**: VAuth verifies _who_ a user is (their college mailbox). VFeedback determines permissions from its own database records. Roles never come from VAuth claims.
+- **Allowlist Guards**: Access guards are strictly allowlists.
+- **Dev Personas**: Local development supports simulated personas when `VFEEDBACK_DEV_AUTH=1` (`student-a` and `student-b`), protected by HMAC-signed HTTP-only cookies. Dev auth is forbidden and strictly prevented from running in production.
+- **Full Documentation**: Refer to [`docs/AUTH.md`](docs/AUTH.md) for full architecture, environment variables, troubleshooting, and VAuth client registration details.

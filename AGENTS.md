@@ -20,7 +20,7 @@ Do not substitute any parts of the stack without explicit approval:
 
 ## Hard Constraints
 
-1. **Student Privacy**: Students do not need accounts. Reports are anonymous. No IP address is stored with or linked to a report. Rate-limit rows are removed within an hour, and the device cookie lasts one day. It is not linked to any report.
+1. **Student & Session Privacy**: Students do not need accounts. Reports are anonymous. No IP address is stored with or linked to a report. Rate-limit rows are removed within an hour, and the device cookie lasts one day. It is not linked to any report. User sessions store no IP address or user agent (`ipAddress` and `userAgent` are forced to null).
 2. **Access Boundary**: Public users can never read, browse, or list reports. The public status page must only return status information for one exact reference code.
 3. **Staff Authorization**: Every staff action must re-verify role and department permissions on the server before reading or mutating data.
 4. **UI Design System**: Strictly follow `docs/VOSS.org_design.md`:
@@ -45,3 +45,11 @@ Do not substitute any parts of the stack without explicit approval:
 - Only floating layers may have shadows.
 - Student controls are 44px.
 - A failed environment check is a warning unless it risks data loss.
+- Roles never come from VAuth claims.
+- Do not re-check the email domain: VAuth enforces it.
+- No match means no role.
+- Guards are allowlists: only an explicit true grants access, and any failure to resolve access means no access.
+- Never trust forwarded headers; inspect verified peer connections or explicit proxy configurations only.
+- POSTs check the Origin.
+- Note on student privacy: currently report submission is anonymous without login; anonymity rules will change when reports are linked to accounts in a future task.
+- Sessions store no IP address or user agent (`ipAddress` and `userAgent` are forced to null).

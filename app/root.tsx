@@ -1,4 +1,5 @@
 import {
+  Form,
   isRouteErrorResponse,
   Link,
   Links,
@@ -8,23 +9,51 @@ import {
   ScrollRestoration,
   useLocation,
   useRouteLoaderData,
+  useSubmit,
 } from "react-router";
 import { useEffect, useState } from "react";
-import { AlertTriangle, FileQuestion, Menu, MessageSquarePlus, Moon, Search, Sun } from "lucide-react";
+import { AlertTriangle, FileQuestion, LogOut, Menu, MessageSquarePlus, Moon, Search, Sun } from "lucide-react";
 import type { Route } from "./+types/root";
 import "./app.css";
 import { Button } from "~/components/ui/button";
 import { buttonVariants } from "~/components/ui/button-variants";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "~/components/ui/sheet";
 import { EmptyState } from "~/components/empty-state";
 import { cn } from "~/lib/utils";
 import { getAppUrl } from "~/lib/app-url";
+import { getSession } from "~/lib/session.server";
 
 export const links: Route.LinksFunction = () => [];
 
-export async function loader() {
+export function headers(): HeadersInit {
+  return {
+    "Cache-Control": "private, no-store",
+  };
+}
+
+export async function loader({ request }: Route.LoaderArgs) {
+  let displayName: string | null = null;
+  try {
+    const session = await getSession(request);
+    if (session?.name) {
+      displayName = session.name;
+    }
+  } catch {
+    // Session resolution error, safely default to null
+  }
+
   return {
     appUrl: getAppUrl(),
+    displayName,
   };
 }
 
@@ -96,10 +125,25 @@ function isLinkActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "U";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 function Header() {
   const location = useLocation();
+  const loaderData = useRouteLoaderData<typeof loader>("root");
+  const displayName = loaderData?.displayName;
+  const submit = useSubmit();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  const handleSignOut = () => {
+    setMobileOpen(false);
+    submit(null, { method: "post", action: "/logout" });
+  };
 
   useEffect(() => {
     let isDark = document.documentElement.classList.contains("dark");
@@ -168,14 +212,42 @@ function Header() {
             <Moon className="size-4 dark:hidden" aria-hidden />
             <span className="sr-only">{theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}</span>
           </Button>
-          <Button
-            variant="outline"
-            disabled
-            className="hidden min-h-11 min-w-11 md:inline-flex"
-            title="Staff sign in (coming soon)"
-          >
-            Staff sign in
-          </Button>
+
+          {displayName ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="ghost" className="hidden min-h-11 gap-2 px-3 text-sm font-medium md:inline-flex">
+                    <span className="flex size-7 items-center justify-center rounded-full bg-muted border text-xs font-semibold">
+                      {initials(displayName)}
+                    </span>
+                    <span className="max-w-[140px] truncate">{displayName}</span>
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel className="truncate font-normal">
+                    <span className="text-muted-foreground text-xs block">Signed in as</span>
+                    <span className="font-medium text-foreground block truncate">{displayName}</span>
+                  </DropdownMenuLabel>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={handleSignOut}
+                  className="w-full flex items-center gap-2 cursor-pointer text-destructive focus:text-destructive"
+                >
+                  <LogOut className="size-4" aria-hidden />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Link to="/login" className={cn(buttonVariants({ variant: "outline" }), "hidden min-h-11 md:inline-flex")}>
+              Sign in
+            </Link>
+          )}
+
           <div className="md:hidden">
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger
@@ -212,10 +284,38 @@ function Header() {
                     );
                   })}
                 </nav>
-                <div className="mt-auto border-t p-5">
-                  <Button variant="outline" disabled className="min-h-11 w-full">
-                    Staff sign in
-                  </Button>
+                <div className="mt-auto border-t p-4">
+                  {displayName ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 px-1">
+                        <span className="flex size-8 items-center justify-center rounded-full bg-muted border text-xs font-semibold">
+                          {initials(displayName)}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">{displayName}</p>
+                        </div>
+                      </div>
+                      <div className="grid gap-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="min-h-11 w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+                          onClick={handleSignOut}
+                        >
+                          <LogOut className="size-4" aria-hidden />
+                          Sign out
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Link
+                      to="/login"
+                      onClick={() => setMobileOpen(false)}
+                      className={cn(buttonVariants({ variant: "outline" }), "min-h-11 w-full justify-center")}
+                    >
+                      Sign in
+                    </Link>
+                  )}
                 </div>
               </SheetContent>
             </Sheet>

@@ -110,6 +110,8 @@ const requiredKeys = [
   "POSTGRES_PASSWORD",
   "DATABASE_URL",
   "SESSION_SECRET",
+  "BETTER_AUTH_SECRET",
+  "BETTER_AUTH_URL",
 ];
 
 function validateEnv(envMap) {
@@ -198,6 +200,17 @@ export function runSetup() {
     sessionSecret = randomBytes(32).toString("hex");
   }
 
+  // Determine better auth secret (independent of SESSION_SECRET)
+  let betterAuthSecret = currentEnv.get("BETTER_AUTH_SECRET");
+  if (!betterAuthSecret || betterAuthSecret === "change-me") {
+    betterAuthSecret = randomBytes(32).toString("hex");
+  }
+
+  let betterAuthUrl = currentEnv.get("BETTER_AUTH_URL");
+  if (!betterAuthUrl) {
+    betterAuthUrl = currentEnv.get("APP_URL") || "http://localhost:5173";
+  }
+
   const user = currentEnv.get("POSTGRES_USER") || "vfeedback";
   const db = currentEnv.get("POSTGRES_DB") || "vfeedback";
   const port = currentEnv.get("POSTGRES_PORT") || "5432";
@@ -236,6 +249,10 @@ export function runSetup() {
       valToSerialize = postgresPassword;
     } else if (key === "SESSION_SECRET") {
       valToSerialize = sessionSecret;
+    } else if (key === "BETTER_AUTH_SECRET") {
+      valToSerialize = betterAuthSecret;
+    } else if (key === "BETTER_AUTH_URL") {
+      valToSerialize = betterAuthUrl;
     } else if (key === "DATABASE_URL") {
       valToSerialize = databaseUrl;
     } else {
@@ -253,6 +270,10 @@ export function runSetup() {
         valToSerialize = postgresPassword;
       } else if (key === "SESSION_SECRET") {
         valToSerialize = sessionSecret;
+      } else if (key === "BETTER_AUTH_SECRET") {
+        valToSerialize = betterAuthSecret;
+      } else if (key === "BETTER_AUTH_URL") {
+        valToSerialize = betterAuthUrl;
       } else if (key === "DATABASE_URL") {
         valToSerialize = databaseUrl;
       } else {
